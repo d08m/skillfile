@@ -1,0 +1,35 @@
+# skillfile — build plan
+
+Open-source CLI. Repo → agent-executable skills (`SKILL.md`) + `SKILLFILE.md` manifest, committed to the repo. Full context/decisions: Obsidian `Notes/Ventures/Skillfile.md`.
+
+Domain: skillfile.dev. Distribution = artifact-in-repo loop (the commit is the share). No paid tier — deferred until real demand appears. No marketing spend — search/discovery surfaces only, see vault note.
+
+## Phase 0 — scope + scaffold
+- [ ] Confirm domain registered
+- [ ] `npx skillfile init` — three commands only, nothing else:
+  - `init`: scan repo (package files, dir structure, README, git log) → generate `SKILLFILE.md` + one or more `SKILL.md` files. Cut down from graphify's analysis logic — no god-node/community-detection stuff, just enough to produce a useful skill.
+  - `update`: re-scan, AST-only diff, no LLM call (free, matches graphify's `graphify update .` pattern)
+  - `check`: exit non-zero if generated files are stale vs repo state — the CI gate, the actual differentiator
+- [ ] Zero-config: running `init` with no flags must work and produce something useful in <2 min
+- [ ] Output must be valid AGENTS.md-compatible + Anthropic SKILL.md format simultaneously (cross-agent from one source)
+
+## Phase 1 — dogfood (no launch yet)
+- [ ] Run on 2-3 of Dominic's own public/real repos (foundry, quant-ftmo, etc.)
+- [ ] Verify: does a cold agent session (no prior context) actually perform better reading the generated skill vs not? This is the bar — not "does it run," but "does it help." If it doesn't clear this, iterate before touching Phase 2.
+
+## Phase 2 — launch surfaces (after Phase 1 passes)
+- [ ] npm publish, GitHub topics (`agents-md`, `claude-code`, `mcp`, `ai-agents`)
+- [ ] MCP registry listing + `npx skills add` compatibility
+- [ ] One-time PRs: awesome-agent-skills, awesome-mcp-servers
+- [ ] skillfile.dev docs pages written to directly answer real dev search queries (geo-citation approach)
+- [ ] ONE Show HN post + ONE relevant subreddit post, at this point only — not before, not repeated
+
+## Phase 3 — measure, kill gate
+- [ ] Weekly: GitHub code search for `SKILLFILE.md` in repos not owned by Dominic — this is the only real metric, not stars
+- [ ] Kill gate: 4 weeks post-launch, zero stranger adoption → stop, reassess
+- [ ] Paid tier stays OFF unless real companies ask unprompted for hosted ingestion (Slack/Notion/tickets) — see vault note "Monetization — UNPROVEN"
+
+## Explicit non-goals
+- No content calendar, no dev-rel outreach, no following-building, no paid promotion
+- No hosted/paid tier until Phase 3 evidence demands it
+- No competing on raw generation quality alone — AGENTS.md hand-writers and Claude Code `/init` already do that; the wedge is freshness (`check`) + cross-agent output + eventually non-repo sources

@@ -1,0 +1,42 @@
+{
+  "name": "skillfile",
+  "version": "0.1.0",
+  "description": "Generate and keep fresh cross-agent context files (AGENTS.md, SKILL.md) from your repo, deterministically. No LLM calls, no API key.",
+  "license": "MIT",
+  "homepage": "https://skillfile.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bolidee/skillfile.git"
+  },
+  "keywords": [
+    "agents-md",
+    "claude",
+    "claude-code",
+    "cursor",
+    "codex",
+    "ai-agents",
+    "skill",
+    "agent-context",
+    "ci"
+  ],
+  "files": [
+    "bin/",
+    "src/",
+    "README.md",
+    "LICENSE"
+  ],
+  "bin": {
+    "skillfile": "./bin/skillfile.js"
+  },
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node test/smoke.js"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "ignore": "^5.3.2"
+  }
+}

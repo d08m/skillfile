@@ -1,0 +1,17 @@
+{
+  "name": "sample-widget-api",
+  "version": "1.0.0",
+  "description": "A tiny fixture API used to smoke-test skillfile's scanner.",
+  "scripts": {
+    "start": "node index.js",
+    "test": "node test.js",
+    "lint": "eslint .",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "express": "^4.19.0"
+  },
+  "devDependencies": {
+    "eslint": "^9.0.0"
+  }
+}
