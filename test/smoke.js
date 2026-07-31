@@ -204,11 +204,94 @@ test('language is inferred from files when no manifest declares one', () => {
   assert.ok(!agents.includes('Language: unknown'));
 });
 
+/** Committing and switching branches must not count as drift — otherwise the
+ * CI gate fails on every push and gets deleted. */
+function makeGitRepo() {
+  const dir = makeTempRepo();
+  const git = (...args) =>
+    execFileSync('git', args, {
+      cwd: dir,
+      stdio: 'ignore',
+      env: {
+        ...process.env,
+        GIT_AUTHOR_NAME: 'test', GIT_AUTHOR_EMAIL: 't@e.st',
+        GIT_COMMITTER_NAME: 'test', GIT_COMMITTER_EMAIL: 't@e.st',
+      },
+    });
+  git('init', '-q');
+  git('add', '-A');
+  git('commit', '-qm', 'initial');
+  return { dir, git };
+}
+
+test('check survives a new commit (the CI gate must not fail on every push)', () => {
+  const { dir, git } = makeGitRepo();
+  run(dir, ['init']);
+  git('add', '-A');
+  git('commit', '-qm', 'add generated agent context');
+
+  const result = run(dir, ['check']);
+  assert.strictEqual(result.code, 0, `a commit is not drift, got exit ${result.code}`);
+});
+
+test('check survives a branch checkout', () => {
+  const { dir, git } = makeGitRepo();
+  run(dir, ['init']);
+  git('add', '-A');
+  git('commit', '-qm', 'context');
+  git('checkout', '-qb', 'some-feature');
+
+  assert.strictEqual(run(dir, ['check']).code, 0, 'switching branches is not drift');
+});
+
+test('real drift is still caught once git is out of the fingerprint', () => {
+  const { dir, git } = makeGitRepo();
+  run(dir, ['init']);
+  git('add', '-A');
+  git('commit', '-qm', 'context');
+
+  const pkgPath = path.join(dir, 'package.json');
+  const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+  pkg.scripts.build = 'echo building';
+  fs.writeFileSync(pkgPath, JSON.stringify(pkg));
+
+  assert.strictEqual(run(dir, ['check']).code, 1, 'a changed command is still drift');
+});
+
 test('an unknown tool name fails loudly instead of silently doing nothing', () => {
   const dir = makeTempRepo();
   const result = run(dir, ['init', '--tools', 'not-a-real-tool']);
   assert.strictEqual(result.code, 1, `expected exit 1 for an unknown tool, got ${result.code}`);
   assert.ok(!fs.existsSync(path.join(dir, 'SKILLFILE.md')), 'nothing should be written on a bad target');
+});
+
+// The cross-agent contract: one generated body has to read correctly on Claude
+// Code, Codex, Cursor, Gemini CLI and the rest, so it can never name a tool that
+// only exists in one of them. Locked down as a test because the failure is
+// invisible — output naming `Bash` still looks fine until it runs on Codex.
+test('generated bodies never name a harness-specific tool', () => {
+  const dir = makeTempRepo();
+  run(dir, ['init', '--tools', 'agents-md,claude-skill,cursor,gemini-cli,windsurf,claude-md']);
+  const manifest = fs.readFileSync(path.join(dir, 'SKILLFILE.md'), 'utf8');
+  // Only the target list — everything below "Keeping this fresh" is bulleted
+  // `npx skillfile ...` commands, which are not paths.
+  const generated = manifest
+    .split('## Keeping this fresh')[0]
+    .split('\n')
+    .filter((l) => l.startsWith('- `'))
+    .map((l) => l.split('`')[1]);
+  assert.ok(generated.length > 1, 'expected several targets written');
+
+  // Tool names proper, not the English words: `Read`/`Task`/`Edit` are ordinary
+  // prose, so match the call shapes an agent instruction would actually use.
+  const harnessTools =
+    /\b(?:Bash|Grep|Glob|WebFetch|WebSearch|NotebookEdit|TodoWrite)\b|\b(?:call|invoke|use)\s+(?:the\s+)?`?(?:Read|Edit|Write|Task)\b/i;
+
+  for (const rel of generated) {
+    const body = fs.readFileSync(path.join(dir, rel), 'utf8');
+    const hit = body.match(harnessTools);
+    assert.ok(!hit, `${rel} names harness-specific tool "${hit && hit[0]}" — describe the action instead`);
+  }
 });
 
 if (process.exitCode) {

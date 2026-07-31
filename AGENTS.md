@@ -10,6 +10,8 @@ Generate and keep fresh cross-agent context files (AGENTS.md, SKILL.md) from you
 
 ## Commands
 
+Use Bash to run these.
+
 - `test`: `node test/smoke.js`
 - `check-tools`: `node scripts/check-tools.js`
 
@@ -30,7 +32,8 @@ Generate and keep fresh cross-agent context files (AGENTS.md, SKILL.md) from you
 
 ## Recent activity
 
-Branch: `main`
+Branch: `fix-check-treadmill`
+- Make render targets data instead of hardcoded paths
 - Landing page, LICENSE, CI workflow, npm package fields
 - skillfile v0.1.0 — init/update/check CLI
 

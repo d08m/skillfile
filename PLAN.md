@@ -18,11 +18,17 @@ Domain: skillfile.dev. Distribution = artifact-in-repo loop (the commit is the s
 - [ ] Verify: does a cold agent session (no prior context) actually perform better reading the generated skill vs not? This is the bar — not "does it run," but "does it help." If it doesn't clear this, iterate before touching Phase 2.
 
 ## Phase 2 — launch surfaces (after Phase 1 passes)
+
+**Ordered by evidence, not by ease.** `obra/superpowers` reached 264k stars with first-party plugin marketplaces as its primary channel — no ads, no outreach, no audience play. That is the one distribution surface compatible with the banned-channel rules, so it goes first, not last.
+
+- [ ] **First-party plugin marketplaces — the lead channel.** Anthropic's Claude Code marketplace and OpenAI's Codex marketplace (`github.com/openai/plugins`). Requires a plugin manifest per marketplace; `tools.json` already makes the per-target rendering a solved problem. Check each marketplace's submission rules before building the manifests.
 - [ ] npm publish, GitHub topics (`agents-md`, `claude-code`, `mcp`, `ai-agents`)
 - [ ] MCP registry listing + `npx skills add` compatibility
 - [ ] One-time PRs: awesome-agent-skills, awesome-mcp-servers
 - [ ] skillfile.dev docs pages written to directly answer real dev search queries (geo-citation approach)
 - [ ] ONE Show HN post + ONE relevant subreddit post, at this point only — not before, not repeated
+
+> Note the reframe: "platform first-party" is listed elsewhere in this plan as the biggest *threat* (Claude Code `/init` generates CLAUDE.md natively). It is both — the same platforms whose built-in generators compete with us are also the distribution surface that carries independent tools to six figures of reach. Ship to them; don't try to out-generate them.
 
 ## Phase 3 — measure, kill gate
 - [ ] Weekly: GitHub code search for `SKILLFILE.md` in repos not owned by Dominic — this is the only real metric, not stars

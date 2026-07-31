@@ -1,10 +1,20 @@
 const { stableHash } = require('./hash');
 
 /** Fields that reflect real repo state — used for the freshness hash.
- * `scannedAt` is deliberately excluded: it changes on every run and would
- * make `check` report "stale" even when nothing actually changed. */
+ *
+ * `scannedAt` is excluded: it changes on every run and would make `check`
+ * report "stale" even when nothing actually changed.
+ *
+ * `git` is excluded for the same reason, one step further out. Commit
+ * subjects and the branch name are rendered because they orient an agent,
+ * but they change on every commit and every checkout — folding them into the
+ * hash means `check` fails immediately after each commit, so the CI gate
+ * would fail on every push and teach people to delete it. Staleness has to
+ * mean "the commands, structure, or dependencies moved", not "someone
+ * committed". The rendered activity list therefore trails by one commit,
+ * which is cosmetic; a wrong build/test command is not. */
 function contentFingerprint(scan) {
-  const { scannedAt, ...rest } = scan;
+  const { scannedAt, git, ...rest } = scan;
   return stableHash(rest);
 }
 
@@ -46,6 +56,8 @@ ${description || '_No description found in package manifest or README._'}
 ${packageManager ? `- Package manager: ${packageManager}` : ''}
 
 ## Commands
+
+Use Bash to run these.
 
 ${renderScriptsList(scripts)}
 
