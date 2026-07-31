@@ -1,0 +1,64 @@
+{
+  "_note": "Source of truth for skillfile's render targets. Each target maps a tool to a `format` (which renderer produces the bytes) and a `dest` path template relative to the repo root. `{repo}` expands to the scanned repo name. Same `format` name guarantees byte-identical output, so two targets may share a format only if their generated files are identical. `default: true` targets are written by a bare `skillfile init`; the rest are opt-in via `--tools` and are then remembered in SKILLFILE.md frontmatter so bare `update`/`check` keep honouring them. `owns` is the top-level repo entry the target creates — every `owns` value is excluded from the scan fingerprint unconditionally (whether or not the target is enabled), so the freshness hash never depends on which tools a repo opted into. Targets that would write inside a directory skillfile does not own (e.g. .github/) are deliberately absent: those tools read AGENTS.md natively. scripts/check-tools.js (CI: ci.yml) fails the build if this file disagrees with the renderer registry in src/render.js. To add a target: add an entry here, add its `format` to RENDERERS in src/render.js if new, then run `npm run check-tools`.",
+  "formats": {
+    "agents-md": "renderAgentsMd",
+    "claude-skill": "renderSkillMd",
+    "cursor-mdc": "renderCursorMdc"
+  },
+  "targets": {
+    "agents-md": {
+      "label": "AGENTS.md",
+      "note": "The cross-agent convention — read natively by Codex, Cursor, Copilot, Gemini CLI, Aider, Windsurf and 20+ other tools.",
+      "format": "agents-md",
+      "dest": "AGENTS.md",
+      "owns": "AGENTS.md",
+      "default": true,
+      "order": 1
+    },
+    "claude-skill": {
+      "label": "Claude Code skill",
+      "note": "Anthropic SKILL.md format — frontmatter description is what Claude reads to decide when to load it.",
+      "format": "claude-skill",
+      "dest": ".claude/skills/{repo}/SKILL.md",
+      "owns": ".claude",
+      "default": true,
+      "order": 2
+    },
+    "claude-md": {
+      "label": "Claude Code repo memory",
+      "note": "Opt-in. Only useful when a repo wants the context always-on rather than skill-triggered.",
+      "format": "agents-md",
+      "dest": "CLAUDE.md",
+      "owns": "CLAUDE.md",
+      "default": false,
+      "order": 3
+    },
+    "gemini-cli": {
+      "label": "Gemini CLI",
+      "note": "Opt-in. Gemini CLI reads GEMINI.md from the repo root.",
+      "format": "agents-md",
+      "dest": "GEMINI.md",
+      "owns": "GEMINI.md",
+      "default": false,
+      "order": 4
+    },
+    "cursor": {
+      "label": "Cursor rule",
+      "note": "Opt-in. Cursor .mdc rules take their own frontmatter; alwaysApply keeps repo context in every request.",
+      "format": "cursor-mdc",
+      "dest": ".cursor/rules/{repo}.mdc",
+      "owns": ".cursor",
+      "default": false,
+      "order": 5
+    },
+    "windsurf": {
+      "label": "Windsurf rules",
+      "note": "Opt-in. Windsurf reads a single .windsurfrules file at the repo root.",
+      "format": "agents-md",
+      "dest": ".windsurfrules",
+      "owns": ".windsurfrules",
+      "default": false,
+      "order": 6
+    }
+  }
+}

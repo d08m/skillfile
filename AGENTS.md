@@ -11,11 +11,13 @@ Generate and keep fresh cross-agent context files (AGENTS.md, SKILL.md) from you
 ## Commands
 
 - `test`: `node test/smoke.js`
+- `check-tools`: `node scripts/check-tools.js`
 
 ## Structure
 
 - `.github/`
 - `bin/`
+- `scripts/`
 - `site/`
 - `src/`
 - `test/`
@@ -29,6 +31,7 @@ Generate and keep fresh cross-agent context files (AGENTS.md, SKILL.md) from you
 ## Recent activity
 
 Branch: `main`
+- Landing page, LICENSE, CI workflow, npm package fields
 - skillfile v0.1.0 — init/update/check CLI
 
 ---

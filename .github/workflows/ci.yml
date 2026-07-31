@@ -14,6 +14,8 @@ jobs:
         with:
           node-version: 20
       - run: npm install
+      # tools.json is only a source of truth if something enforces it.
+      - run: npm run check-tools
       - run: npm test
       # Dogfood: this repo's own AGENTS.md must never go stale.
       - run: node bin/skillfile.js check

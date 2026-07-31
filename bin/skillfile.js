@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 
 const { Command } = require('commander');
-const { init, update, check } = require('../src/commands');
+const { init, update, check, knownTargetIds } = require('../src/commands');
+
+const TOOLS_HELP = `extra tools to generate for, comma-separated (${knownTargetIds().join(', ')})`;
+const list = (value) => value.split(',').map((s) => s.trim()).filter(Boolean);
 
 const program = new Command();
 
@@ -13,7 +16,8 @@ program
 program
   .command('init')
   .description('scan the repo and generate AGENTS.md, SKILL.md, and SKILLFILE.md')
-  .option('-f, --force', 'overwrite an existing hand-written AGENTS.md')
+  .option('-f, --force', 'overwrite existing hand-written context files')
+  .option('-t, --tools <list>', TOOLS_HELP, list)
   .action((opts) => {
     init(process.cwd(), opts);
   });
@@ -21,8 +25,10 @@ program
 program
   .command('update')
   .description('re-scan and rewrite the generated files (no LLM call, free)')
-  .action(() => {
-    update(process.cwd());
+  .option('-t, --tools <list>', `${TOOLS_HELP} — added to the set already in SKILLFILE.md`, list)
+  .option('-f, --force', 'overwrite existing hand-written context files')
+  .action((opts) => {
+    update(process.cwd(), opts);
   });
 
 program

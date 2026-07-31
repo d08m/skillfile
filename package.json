@@ -22,6 +22,7 @@
   "files": [
     "bin/",
     "src/",
+    "tools.json",
     "README.md",
     "LICENSE"
   ],
@@ -33,7 +34,8 @@
     "node": ">=18"
   },
   "scripts": {
-    "test": "node test/smoke.js"
+    "test": "node test/smoke.js",
+    "check-tools": "node scripts/check-tools.js"
   },
   "dependencies": {
     "commander": "^12.1.0",

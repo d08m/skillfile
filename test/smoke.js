@@ -98,6 +98,119 @@ test('init --force overwrites a hand-written AGENTS.md', () => {
   assert.ok(fs.readFileSync(path.join(dir, 'AGENTS.md'), 'utf8').includes('<!-- skillfile:generated -->'));
 });
 
+test('init --tools writes the opt-in targets as well as the defaults', () => {
+  const dir = makeTempRepo();
+  const result = run(dir, ['init', '--tools', 'claude-md,cursor']);
+  assert.strictEqual(result.code, 0, `init --tools should exit 0, got ${result.code}`);
+  assert.ok(fs.existsSync(path.join(dir, 'AGENTS.md')), 'defaults still written');
+  assert.ok(fs.existsSync(path.join(dir, '.claude', 'skills', 'smoke-fixture', 'SKILL.md')));
+  assert.ok(fs.existsSync(path.join(dir, 'CLAUDE.md')), 'claude-md target written');
+  assert.ok(fs.existsSync(path.join(dir, '.cursor', 'rules', 'smoke-fixture.mdc')), 'cursor target written');
+});
+
+test('targets sharing a format render byte-identical output', () => {
+  const dir = makeTempRepo();
+  run(dir, ['init', '--tools', 'claude-md,gemini-cli,windsurf']);
+  const agents = fs.readFileSync(path.join(dir, 'AGENTS.md'), 'utf8');
+  for (const dest of ['CLAUDE.md', 'GEMINI.md', '.windsurfrules']) {
+    assert.strictEqual(
+      fs.readFileSync(path.join(dir, dest), 'utf8'),
+      agents,
+      `${dest} shares the agents-md format and must be byte-identical to AGENTS.md`
+    );
+  }
+});
+
+test('opt-in tools persist, so a bare update/check keeps honouring them', () => {
+  const dir = makeTempRepo();
+  run(dir, ['init', '--tools', 'gemini-cli']);
+  assert.ok(fs.readFileSync(path.join(dir, 'SKILLFILE.md'), 'utf8').includes('gemini-cli'));
+
+  fs.rmSync(path.join(dir, 'GEMINI.md'));
+  const missing = run(dir, ['check']);
+  assert.strictEqual(missing.code, 1, 'a deleted declared target is drift');
+
+  run(dir, ['update']);
+  assert.ok(fs.existsSync(path.join(dir, 'GEMINI.md')), 'bare update re-wrote the persisted target');
+  assert.strictEqual(run(dir, ['check']).code, 0);
+});
+
+test('the fingerprint does not depend on which tools are enabled', () => {
+  const bare = makeTempRepo();
+  run(bare, ['init']);
+  const withExtras = makeTempRepo();
+  run(withExtras, ['init', '--tools', 'claude-md,gemini-cli,cursor,windsurf']);
+
+  const hashOf = (dir) =>
+    fs.readFileSync(path.join(dir, 'SKILLFILE.md'), 'utf8').match(/source-hash:\s*([a-f0-9]+)/)[1];
+  assert.strictEqual(hashOf(bare), hashOf(withExtras), 'enabling targets must not move the hash');
+});
+
+test('init refuses to clobber a hand-written CLAUDE.md', () => {
+  const dir = makeTempRepo();
+  fs.writeFileSync(path.join(dir, 'CLAUDE.md'), '# hand written project memory');
+  const result = run(dir, ['init', '--tools', 'claude-md']);
+  assert.strictEqual(result.code, 1);
+  assert.ok(fs.readFileSync(path.join(dir, 'CLAUDE.md'), 'utf8').includes('hand written'));
+});
+
+test('update --tools refuses to clobber a hand-written file too', () => {
+  const dir = makeTempRepo();
+  run(dir, ['init']);
+  fs.writeFileSync(path.join(dir, 'CLAUDE.md'), '# hand written project memory');
+
+  const result = run(dir, ['update', '--tools', 'claude-md']);
+  assert.strictEqual(result.code, 1, `update should refuse, got exit ${result.code}`);
+  assert.ok(fs.readFileSync(path.join(dir, 'CLAUDE.md'), 'utf8').includes('hand written'));
+
+  const forced = run(dir, ['update', '--tools', 'claude-md', '--force']);
+  assert.strictEqual(forced.code, 0);
+  assert.ok(fs.readFileSync(path.join(dir, 'CLAUDE.md'), 'utf8').includes('<!-- skillfile:generated -->'));
+});
+
+test('Makefile targets become commands when there are no manifest scripts', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'skillfile-make-'));
+  fs.writeFileSync(
+    path.join(dir, 'Makefile'),
+    'CC := gcc\n.PHONY: build\nbuild: deps\n\techo building\ntest:\n\techo testing\n'
+  );
+  run(dir, ['init']);
+  const agents = fs.readFileSync(path.join(dir, 'AGENTS.md'), 'utf8');
+  assert.ok(agents.includes('`build`: `make build`'), 'build target should be listed');
+  assert.ok(agents.includes('`test`: `make test`'), 'test target should be listed');
+  assert.ok(!agents.includes('CC'), 'variable assignments must not be read as targets');
+});
+
+test('pyproject scripts become commands', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'skillfile-py-'));
+  fs.writeFileSync(
+    path.join(dir, 'pyproject.toml'),
+    '[project]\nname = "pyfixture"\ndescription = "a python fixture"\n\n[project.scripts]\nserve = "pyfixture.cli:main"\n'
+  );
+  run(dir, ['init']);
+  const agents = fs.readFileSync(path.join(dir, 'AGENTS.md'), 'utf8');
+  assert.ok(agents.includes('Language: Python'));
+  assert.ok(agents.includes('`serve`: `pyfixture.cli:main`'), 'pyproject script should be listed');
+});
+
+test('language is inferred from files when no manifest declares one', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'skillfile-content-'));
+  fs.mkdirSync(path.join(dir, 'catalog'));
+  for (const name of ['a.md', 'b.md', 'c.md']) fs.writeFileSync(path.join(dir, 'catalog', name), '# doc');
+  fs.writeFileSync(path.join(dir, 'one.css'), 'body{}');
+  run(dir, ['init']);
+  const agents = fs.readFileSync(path.join(dir, 'AGENTS.md'), 'utf8');
+  assert.ok(agents.includes('Language: Markdown'), `expected inferred Markdown, got:\n${agents}`);
+  assert.ok(!agents.includes('Language: unknown'));
+});
+
+test('an unknown tool name fails loudly instead of silently doing nothing', () => {
+  const dir = makeTempRepo();
+  const result = run(dir, ['init', '--tools', 'not-a-real-tool']);
+  assert.strictEqual(result.code, 1, `expected exit 1 for an unknown tool, got ${result.code}`);
+  assert.ok(!fs.existsSync(path.join(dir, 'SKILLFILE.md')), 'nothing should be written on a bad target');
+});
+
 if (process.exitCode) {
   console.error('\nsmoke tests FAILED');
 } else {
