@@ -57,8 +57,6 @@ ${packageManager ? `- Package manager: ${packageManager}` : ''}
 
 ## Commands
 
-Use Bash to run these.
-
 ${renderScriptsList(scripts)}
 
 ## Structure
@@ -147,7 +145,7 @@ ${targets.map((t) => `- \`${t.dest}\` — ${t.label}`).join('\n')}
 - \`npx skillfile update\` — re-scan and rewrite both files (free, no LLM call)
 - \`npx skillfile check\` — exits non-zero if the repo has drifted since the last generation; wire into CI so a stale context file fails the build, the same way a stale lockfile would
 
-Source hash: \`${fingerprint}\` (changes when scripts, dependencies, structure, or recent commits change — not on every run)
+Source hash: \`${fingerprint}\` (changes when scripts, dependencies, structure, or tooling change — deliberately not on a new commit, a branch switch, or a re-run)
 `;
 }
 
