@@ -29,7 +29,6 @@
   "bin": {
     "skillfile": "./bin/skillfile.js"
   },
-  "main": "src/index.js",
   "engines": {
     "node": ">=18"
   },
