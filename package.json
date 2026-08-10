@@ -27,7 +27,7 @@
     "LICENSE"
   ],
   "bin": {
-    "skillfile": "./bin/skillfile.js"
+    "skillfile": "bin/skillfile.js"
   },
   "engines": {
     "node": ">=18"

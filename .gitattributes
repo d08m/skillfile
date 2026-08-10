@@ -1,0 +1,6 @@
+# The CLI entry point must keep LF endings in the working tree, not just in
+# git. `npm pack` packs the working copy, so publishing from Windows with
+# autocrlf on ships `#!/usr/bin/env node\r` — which fails on macOS and Linux
+# with "env: node\r: No such file or directory". The package is unusable for
+# most of its audience and nothing on Windows would ever reveal it.
+bin/*.js text eol=lf
