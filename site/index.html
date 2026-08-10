@@ -7,6 +7,19 @@
 <meta name="description" content="skillfile scans your repo and writes AGENTS.md and Claude SKILL.md from what it actually finds. It stores a hash of the scan, so `skillfile check` fails CI when your commands, structure or dependencies drift. No LLM calls, no API key.">
 <link rel="canonical" href="https://skillfile.pro/">
 <link rel="alternate" type="text/plain" href="/llms.txt" title="Machine-readable summary for agents">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://skillfile.pro/">
+<meta property="og:title" content="skillfile — agent context files that fail your build when they go stale">
+<meta property="og:description" content="Generates AGENTS.md and Claude SKILL.md from a scan of your repo, then fails CI when they drift. No LLM calls, no API key.">
+<meta property="og:image" content="https://skillfile.pro/og.png">
+<meta property="og:image:width" content="2400">
+<meta property="og:image:height" content="1260">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="skillfile — agent context files that fail your build when they go stale">
+<meta name="twitter:description" content="Generates AGENTS.md and Claude SKILL.md from a scan of your repo, then fails CI when they drift. No LLM calls, no API key.">
+<meta name="twitter:image" content="https://skillfile.pro/og.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -48,7 +61,12 @@
   .wordmark {
     font-family: 'JetBrains Mono', monospace; font-size: 15px; font-weight: 700;
     text-decoration: none; letter-spacing: -0.02em;
+    display: inline-flex; align-items: center; gap: 9px;
   }
+  /* The mark is an equals sign: the product is one question, does the hash
+     still equal the repo. Green because that is the state you want to be in. */
+  .mark { width: 22px; height: 22px; border-radius: 5px; background: var(--ink); display: inline-flex; flex-direction: column; justify-content: center; align-items: center; gap: 3.5px; flex: none; }
+  .mark i { display: block; width: 12px; height: 2.4px; border-radius: 1.2px; background: #3fbd8a; }
   .wordmark .dim { color: var(--faint); font-weight: 400; }
   .navlinks { display: flex; gap: 6px 18px; align-items: center; flex-wrap: wrap; }
   .navlinks a {
@@ -209,7 +227,7 @@
 
 <header>
   <div class="wrap nav">
-    <a class="wordmark" href="/"><span>skillfile</span><span class="dim">.pro</span></a>
+    <a class="wordmark" href="/"><span class="mark" aria-hidden="true"><i></i><i></i></span><span>skillfile<span class="dim">.pro</span></span></a>
     <nav class="navlinks">
       <a href="#how">how it works</a>
       <a href="#agents">for agents</a>
