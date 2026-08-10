@@ -58,7 +58,21 @@
   .navlinks a:hover { color: var(--ink); }
 
   /* ---------- hero ---------- */
-  .hero { padding: 72px 0 8px; }
+  .hero { padding: 68px 0 8px; display: grid; grid-template-columns: 1.08fr 0.92fr; gap: 56px; align-items: start; }
+  @media (max-width: 960px) { .hero { grid-template-columns: 1fr; gap: 36px; } }
+  .heroproof { border: 1px solid var(--rule-strong); border-radius: 3px; overflow: hidden; background: var(--panel); }
+  .heroproof .cap {
+    font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: var(--muted);
+    padding: 9px 14px; border-bottom: 1px solid var(--rule); background: #f6f6f4;
+  }
+  .heroproof .run { padding: 14px; font-family: 'JetBrains Mono', monospace; font-size: 12.5px; line-height: 1.7; }
+  .heroproof .run + .run { border-top: 1px solid var(--rule); }
+  .heroproof .cmd { color: var(--ink); }
+  .heroproof .cmd .d { color: var(--faint); }
+  .heroproof .out { display: block; margin-top: 4px; }
+  .heroproof .out.ok { color: var(--fresh); }
+  .heroproof .out.bad { color: var(--stale); }
+  .heroproof .why { display: block; margin-top: 6px; font-family: 'Inter', sans-serif; font-size: 12.5px; color: var(--muted); }
   .eyebrow {
     font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: 0.1em;
     text-transform: uppercase; color: var(--faint); margin-bottom: 22px;
@@ -105,7 +119,7 @@
   .d-box { fill: var(--panel); stroke: var(--rule-strong); stroke-width: 1; }
   .d-title { font: 500 13px 'JetBrains Mono', monospace; fill: var(--ink); }
   .d-item { font: 400 11.5px 'JetBrains Mono', monospace; fill: var(--muted); }
-  .d-note { font: 400 11.5px 'Inter', sans-serif; fill: var(--faint); }
+  .d-note { font: 400 11.5px 'Inter', sans-serif; fill: var(--muted); }
   .d-arrow { stroke: var(--rule-strong); stroke-width: 1; fill: none; }
   .d-fresh { fill: var(--fresh); }
   .d-stale { fill: var(--stale); }
@@ -207,15 +221,31 @@
 
 <main>
   <div class="wrap hero">
-    <div class="eyebrow">agents.md &middot; skill.md &middot; one source</div>
-    <h1>Your agent context file is a lockfile that nothing locks.</h1>
-    <p class="lede">Every coding agent reads a context file, and every context file rots the moment nobody updates it by hand. skillfile writes yours from a scan of the repo, stores a hash of what it saw, and <strong>fails your build when the two stop matching</strong>. No LLM calls, no API key, nothing to hallucinate.</p>
-    <div class="installrow">
-      <span class="install">
-        <span><span class="dollar">$</span> npx skillfile init</span>
-        <button id="copy" type="button">copy</button>
-      </span>
-      <span class="meta">node 18+ &middot; mit &middot; ~1s</span>
+    <div class="herotext">
+      <div class="eyebrow">agents.md &middot; skill.md &middot; one source</div>
+      <h1>Your agent context file is a lockfile that nothing locks.</h1>
+      <p class="lede">Every coding agent reads a context file, and every context file rots the moment nobody updates it by hand. skillfile writes yours from a scan of the repo, stores a hash of what it saw, and <strong>fails your build when the two stop matching</strong>. No LLM calls, no API key, nothing to hallucinate.</p>
+      <div class="installrow">
+        <span class="install">
+          <span><span class="dollar">$</span> npx skillfile init</span>
+          <button id="copy" type="button">copy</button>
+        </span>
+        <span class="meta">node 18+ &middot; mit &middot; ~1s</span>
+      </div>
+    </div>
+
+    <div class="heroproof">
+      <div class="cap">what your CI sees</div>
+      <div class="run">
+        <span class="cmd"><span class="d">$</span> npx skillfile check</span>
+        <span class="out ok">skillfile: up to date (2 targets). &nbsp;exit 0</span>
+        <span class="why">The context files still describe the repo in front of them.</span>
+      </div>
+      <div class="run">
+        <span class="cmd"><span class="d">$</span> npx skillfile check</span>
+        <span class="out bad">skillfile: stale &mdash; repo has drifted. &nbsp;exit 1</span>
+        <span class="why">Someone changed a build command. The merge that made it stale is now blocked.</span>
+      </div>
     </div>
   </div>
 
@@ -271,18 +301,14 @@
           <text class="d-item d-fresh" x="820" y="126">match &rarr; exit 0</text>
           <text class="d-item d-stale" x="820" y="145">differ &rarr; exit 1</text>
 
-          <!-- feedback loop -->
-          <path class="d-arrow" d="M886 168 V262 H107 V210" marker-end="url(#ah)" stroke-dasharray="4 4"/>
-          <text class="d-note" x="392" y="255">you change a script, add a directory, or adopt a new tool &mdash; the hash no longer matches, CI goes red</text>
-
-          <path class="d-arrow" d="M107 288 H886" marker-end="url(#ahl)" stroke-dasharray="4 4"/>
-          <text class="d-note" x="418" y="308">$ npx skillfile update &mdash; rewrites the files, hash matches again, build goes green</text>
+          <!-- The loop: check fails, you run update, the files are rewritten from the repo. -->
+          <path class="d-arrow" d="M886 168 V252 H107 V210" marker-end="url(#ah)" stroke-dasharray="4 4"/>
+          <text class="d-note" x="330" y="277">drift &mdash; a script, a directory or a dependency moved, so the hash stops matching</text>
+          <text class="d-item" x="330" y="298">$ npx skillfile update</text>
+          <text class="d-note" x="500" y="298">rewrites the files, and the build goes green again</text>
 
           <defs>
             <marker id="ah" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
-              <path d="M0,0 L7,3.5 L0,7 z" fill="#c9cbc7"/>
-            </marker>
-            <marker id="ahl" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
               <path d="M0,0 L7,3.5 L0,7 z" fill="#c9cbc7"/>
             </marker>
           </defs>
@@ -291,7 +317,7 @@
     </div>
   </section>
 
-  <section>
+  <section id="try">
     <div class="wrap">
       <div class="label">Try it</div>
       <h2>Break the repo and watch the build turn red.</h2>
