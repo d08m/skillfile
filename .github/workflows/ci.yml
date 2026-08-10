@@ -19,3 +19,5 @@ jobs:
       - run: npm test
       # Dogfood: this repo's own AGENTS.md must never go stale.
       - run: node bin/skillfile.js check
+      # The site serves that same file as a worked example; the copy must match.
+      - run: node scripts/sync-site.js --check

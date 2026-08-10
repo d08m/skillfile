@@ -1,0 +1,39 @@
+# skillfile
+
+> A CLI that generates cross-agent context files (AGENTS.md, Claude SKILL.md) from a deterministic scan of a repository, and fails CI when they drift from what the repo actually contains. No LLM calls, no API key, no configuration.
+
+skillfile scans a repo's manifest (package.json, pyproject.toml, Cargo.toml, go.mod), Makefile targets, the README's first paragraph, top-level structure, tooling markers and git log. It writes that into `AGENTS.md` and `.claude/skills/<name>/SKILL.md`, plus a `SKILLFILE.md` manifest holding a `source-hash` of the scan. `skillfile check` recomputes the hash and exits non-zero when the repo has moved on.
+
+The hash covers repo content only: name, description, language, package manager, scripts, dependency counts, structure and tooling. It deliberately excludes the git branch and commit log, so committing the generated files does not invalidate them.
+
+## Commands
+
+- `npx skillfile init` — scan and write the context files. Refuses to overwrite hand-written files without `--force`.
+- `npx skillfile update` — re-scan and rewrite. Deterministic, sub-second, free.
+- `npx skillfile check` — exit 0 if fresh, exit 1 if the repo drifted. Intended for CI.
+- `npx skillfile init --tools claude-md,gemini-cli,cursor,windsurf` — also write CLAUDE.md, GEMINI.md, Cursor rules and .windsurfrules from the same scan. The selection persists in SKILLFILE.md frontmatter, so later bare `update` and `check` runs keep honouring it.
+
+## When to use it
+
+- A repo has no AGENTS.md, CLAUDE.md or SKILL.md and an agent is working in it cold.
+- A repo has one, but it was written by hand months ago and now names commands or directories that no longer exist.
+- A team wants stale agent context to fail code review the way a stale lockfile does.
+
+## When not to use it
+
+- To capture architecture rationale, conventions or war stories. skillfile only reports what it can verify from the repo, and refuses to overwrite hand-written files.
+- To infer commands that are not declared anywhere. A repo with no manifest scripts and no Makefile renders "no scripts declared" on purpose.
+
+## Links
+
+- Package: https://www.npmjs.com/package/skillfile
+- Source: https://github.com/d08m/skillfile
+- Installable skill for this tool: https://skillfile.pro/skill.md
+- Example of its output, generated from its own repo: https://skillfile.pro/AGENTS.md
+
+## Facts
+
+- License: MIT
+- Runtime: Node 18+
+- Dependencies: commander, ignore
+- Network calls at runtime: none

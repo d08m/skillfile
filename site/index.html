@@ -3,179 +3,389 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>skillfile — agent context files that can't go stale</title>
-<meta name="description" content="Generate AGENTS.md and Claude SKILL.md from your repo, deterministically. No LLM calls, no API key. skillfile check fails CI when they drift.">
+<title>skillfile — agent context files that fail your build when they go stale</title>
+<meta name="description" content="skillfile scans your repo and writes AGENTS.md and Claude SKILL.md from what it actually finds. It stores a hash of the scan, so `skillfile check` fails CI when your commands, structure or dependencies drift. No LLM calls, no API key.">
 <link rel="canonical" href="https://skillfile.pro/">
+<link rel="alternate" type="text/plain" href="/llms.txt" title="Machine-readable summary for agents">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --ink: #16150f;
-    --paper: #fffdf8;
-    --muted: #6f6a5c;
-    --hairline: #e4e0d3;
-    --accent: #b34724;
-    --code-bg: #16150f;
-    --code-ink: #f2efe6;
+    --ink: #14161a;
+    --paper: #fcfcfb;
+    --panel: #ffffff;
+    --muted: #63676e;
+    --faint: #8b8f96;
+    --rule: #e0e1de;
+    --rule-strong: #c9cbc7;
+    --code-bg: #14161a;
+    --code-ink: #edeee9;
+    --code-faint: #7e838b;
+    /* Semantic only. Green = matches the repo. Red = drifted. Used nowhere else. */
+    --fresh: #17694a;
+    --fresh-bg: #e8f2ec;
+    --stale: #a8231b;
+    --stale-bg: #fbeae8;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  html { scroll-behavior: smooth; }
+  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
   body {
     background: var(--paper);
     color: var(--ink);
     font-family: 'Inter', system-ui, sans-serif;
-    font-size: 17px;
+    font-size: 16.5px;
     line-height: 1.6;
     -webkit-font-smoothing: antialiased;
   }
-  .wrap { max-width: 1060px; margin: 0 auto; padding: 0 24px; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+  code, pre, .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+  a { color: inherit; }
 
-  header {
-    border-bottom: 1px solid var(--hairline);
-  }
-  .nav {
-    display: flex; align-items: baseline; justify-content: space-between;
-    padding: 22px 0;
-  }
+  /* ---------- header ---------- */
+  header { border-bottom: 1px solid var(--rule); }
+  .nav { display: flex; align-items: center; justify-content: space-between; padding: 18px 0; gap: 8px 16px; flex-wrap: wrap; }
   .wordmark {
-    font-family: 'JetBrains Mono', monospace; font-size: 16px; font-weight: 500;
-    text-decoration: none; color: var(--ink);
+    font-family: 'JetBrains Mono', monospace; font-size: 15px; font-weight: 700;
+    text-decoration: none; letter-spacing: -0.02em;
   }
-  .wordmark span { color: var(--accent); }
-  .nav a.gh {
-    font-size: 14px; color: var(--muted); text-decoration: none;
-    border-bottom: 1px solid var(--hairline); padding-bottom: 1px;
+  .wordmark .dim { color: var(--faint); font-weight: 400; }
+  .navlinks { display: flex; gap: 6px 18px; align-items: center; flex-wrap: wrap; }
+  .navlinks a {
+    font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--muted);
+    text-decoration: none;
   }
-  .nav a.gh:hover { color: var(--ink); border-color: var(--ink); }
+  .navlinks a:hover { color: var(--ink); }
 
-  .hero { padding: 96px 0 72px; border-bottom: 1px solid var(--hairline); }
-  .hero .kicker {
-    font-family: 'JetBrains Mono', monospace; font-size: 13px; letter-spacing: 0.08em;
-    text-transform: uppercase; color: var(--accent); margin-bottom: 28px;
+  /* ---------- hero ---------- */
+  .hero { padding: 72px 0 8px; }
+  .eyebrow {
+    font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--faint); margin-bottom: 22px;
   }
   h1 {
-    font-family: 'Newsreader', serif; font-weight: 400;
-    font-size: clamp(40px, 6.5vw, 72px); line-height: 1.05; letter-spacing: -0.015em;
-    max-width: 15ch;
+    font-size: clamp(32px, 4.6vw, 52px); font-weight: 600; line-height: 1.1;
+    letter-spacing: -0.03em; max-width: 20ch; text-wrap: balance;
   }
-  h1 em { font-style: italic; }
-  .hero p.lede {
-    margin-top: 28px; font-size: 19px; color: var(--muted); max-width: 52ch;
-  }
-  .hero p.lede strong { color: var(--ink); font-weight: 500; }
+  .lede { margin-top: 22px; font-size: 18px; color: var(--muted); max-width: 60ch; text-wrap: pretty; }
+  .lede strong { color: var(--ink); font-weight: 500; }
 
+  .installrow { margin-top: 32px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
   .install {
-    margin-top: 40px; display: inline-flex; align-items: center; gap: 16px;
+    display: inline-flex; align-items: center; gap: 14px;
     background: var(--code-bg); color: var(--code-ink);
-    font-family: 'JetBrains Mono', monospace; font-size: 15px;
-    padding: 14px 20px; border-radius: 6px;
+    font-family: 'JetBrains Mono', monospace; font-size: 14.5px;
+    padding: 13px 16px; border-radius: 3px;
   }
-  .install .dollar { color: #8a8578; user-select: none; }
+  .install .dollar { color: var(--code-faint); user-select: none; }
   .install button {
-    background: none; border: 1px solid #3d3a30; color: #a5a091;
-    font-family: inherit; font-size: 12px; padding: 4px 10px; border-radius: 4px;
-    cursor: pointer;
+    background: none; border: 1px solid #363a41; color: #9aa0a8;
+    font-family: inherit; font-size: 11.5px; padding: 4px 9px; border-radius: 2px;
+    cursor: pointer; letter-spacing: 0.04em; text-transform: uppercase;
   }
-  .install button:hover { color: var(--code-ink); border-color: #6f6a5c; }
-  .hero .sub {
-    margin-top: 16px; font-size: 14px; color: var(--muted);
-  }
+  .install button:hover { color: var(--code-ink); border-color: #6b7079; }
+  .meta { font-family: 'JetBrains Mono', monospace; font-size: 12.5px; color: var(--faint); }
 
-  section { padding: 72px 0; border-bottom: 1px solid var(--hairline); }
+  /* ---------- sections ---------- */
+  section { padding: 68px 0; border-top: 1px solid var(--rule); }
+  section:first-of-type { border-top: none; }
   .label {
-    font-family: 'JetBrains Mono', monospace; font-size: 13px; letter-spacing: 0.08em;
-    text-transform: uppercase; color: var(--muted); margin-bottom: 20px;
+    font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--faint); margin-bottom: 16px;
   }
   h2 {
-    font-family: 'Newsreader', serif; font-weight: 400;
-    font-size: clamp(28px, 3.6vw, 40px); line-height: 1.15; letter-spacing: -0.01em;
-    max-width: 24ch;
+    font-size: clamp(23px, 2.9vw, 31px); font-weight: 600; letter-spacing: -0.02em;
+    line-height: 1.2; max-width: 26ch; text-wrap: balance;
   }
-  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; margin-top: 40px; }
-  @media (max-width: 760px) { .cols { grid-template-columns: 1fr; } }
-  .cols p { color: var(--muted); max-width: 46ch; }
-  .cols p + p { margin-top: 16px; }
-  .cols p strong { color: var(--ink); font-weight: 500; }
+  .sub { margin-top: 14px; color: var(--muted); max-width: 62ch; text-wrap: pretty; }
 
-  .filecard {
-    border: 1px solid var(--hairline); border-radius: 6px; overflow: hidden;
-    font-family: 'JetBrains Mono', monospace; font-size: 13.5px;
-  }
-  .filecard .bar {
-    padding: 8px 14px; border-bottom: 1px solid var(--hairline);
-    color: var(--muted); font-size: 12px; background: #faf8f1;
-  }
-  .filecard pre { padding: 16px; overflow-x: auto; line-height: 1.7; }
-  .filecard .c { color: var(--muted); }
-  .filecard .a { color: var(--accent); }
+  /* ---------- diagram ---------- */
+  .diagramwrap { margin-top: 36px; overflow-x: auto; }
+  .diagramwrap svg { display: block; min-width: 720px; width: 100%; height: auto; }
+  .d-box { fill: var(--panel); stroke: var(--rule-strong); stroke-width: 1; }
+  .d-title { font: 500 13px 'JetBrains Mono', monospace; fill: var(--ink); }
+  .d-item { font: 400 11.5px 'JetBrains Mono', monospace; fill: var(--muted); }
+  .d-note { font: 400 11.5px 'Inter', sans-serif; fill: var(--faint); }
+  .d-arrow { stroke: var(--rule-strong); stroke-width: 1; fill: none; }
+  .d-fresh { fill: var(--fresh); }
+  .d-stale { fill: var(--stale); }
 
-  .three { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--hairline); border: 1px solid var(--hairline); border-radius: 6px; overflow: hidden; margin-top: 40px; }
-  @media (max-width: 760px) { .three { grid-template-columns: 1fr; } }
-  .three .cell { background: var(--paper); padding: 28px 24px; }
-  .three .cmd { font-family: 'JetBrains Mono', monospace; font-size: 15px; font-weight: 500; }
-  .three .cmd::before { content: '$ '; color: var(--accent); }
-  .three p { margin-top: 12px; font-size: 15px; color: var(--muted); }
+  /* ---------- drift demo ---------- */
+  .demo { margin-top: 36px; display: grid; grid-template-columns: 1fr 1fr; gap: 0; border: 1px solid var(--rule-strong); border-radius: 3px; overflow: hidden; }
+  @media (max-width: 820px) { .demo { grid-template-columns: 1fr; } }
+  .demo-pane { padding: 0; }
+  .demo-pane + .demo-pane { border-left: 1px solid var(--rule); }
+  @media (max-width: 820px) { .demo-pane + .demo-pane { border-left: none; border-top: 1px solid var(--rule); } }
+  .pane-bar {
+    font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: var(--muted);
+    padding: 9px 14px; border-bottom: 1px solid var(--rule); background: #f6f6f4;
+    display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  }
+  .pane-body { padding: 16px; background: var(--panel); }
+  .demo pre { font-family: 'JetBrains Mono', monospace; font-size: 12.5px; line-height: 1.75; overflow-x: auto; }
+  .demo .k { color: #7a4bb5; }
+  .demo .s { color: #1c6b52; }
+  .demo .changed { background: #fff3cd; padding: 0 2px; border-radius: 2px; }
+
+  .controls { margin-top: 20px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .controls button {
+    font-family: 'JetBrains Mono', monospace; font-size: 12.5px;
+    background: var(--panel); border: 1px solid var(--rule-strong); color: var(--ink);
+    padding: 9px 13px; border-radius: 3px; cursor: pointer;
+  }
+  .controls button:hover { border-color: var(--ink); }
+  .controls button[aria-pressed="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .controls .hint { font-size: 13px; color: var(--faint); }
+
+  .status {
+    margin-top: 18px; border: 1px solid; border-radius: 3px; padding: 14px 16px;
+    font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.6;
+  }
+  .status.ok { border-color: #bcd8c9; background: var(--fresh-bg); color: var(--fresh); }
+  .status.bad { border-color: #eec4bf; background: var(--stale-bg); color: var(--stale); }
+  .status .exit { display: block; margin-top: 6px; opacity: 0.75; font-size: 12px; }
+
+  /* ---------- io panels ---------- */
+  .io { margin-top: 36px; display: grid; grid-template-columns: 1fr auto 1fr; gap: 20px; align-items: start; }
+  @media (max-width: 900px) { .io { grid-template-columns: 1fr; } .io .midarrow { transform: rotate(90deg); justify-self: start; } }
+  .filepanel { border: 1px solid var(--rule-strong); border-radius: 3px; overflow: hidden; background: var(--panel); }
+  .filepanel pre { font-family: 'JetBrains Mono', monospace; font-size: 12.5px; line-height: 1.7; padding: 16px; overflow-x: auto; }
+  .filepanel .c { color: var(--faint); }
+  .midarrow { align-self: center; text-align: center; color: var(--faint); font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+  .midarrow .big { display: block; font-size: 22px; color: var(--rule-strong); line-height: 1; margin-bottom: 6px; }
+
+  /* ---------- commands ---------- */
+  .three { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: 3px; overflow: hidden; margin-top: 36px; }
+  @media (max-width: 820px) { .three { grid-template-columns: 1fr; } }
+  .cell { background: var(--panel); padding: 24px 20px; }
+  .cell .cmd { font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 500; }
+  .cell .cmd::before { content: '$ '; color: var(--faint); }
+  .cell p { margin-top: 10px; font-size: 14.5px; color: var(--muted); }
 
   .ci pre {
-    background: var(--code-bg); color: var(--code-ink); border-radius: 6px;
-    font-family: 'JetBrains Mono', monospace; font-size: 13.5px; line-height: 1.7;
-    padding: 20px; overflow-x: auto; margin-top: 40px;
+    background: var(--code-bg); color: var(--code-ink); border-radius: 3px;
+    font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.8;
+    padding: 20px; overflow-x: auto; margin-top: 28px;
   }
-  .ci .cm { color: #8a8578; }
-  .ci .k { color: #d9a066; }
+  .ci .cm { color: var(--code-faint); }
+  .ci .k { color: #d6b46a; }
 
-  .honest { max-width: 60ch; }
-  .honest p { color: var(--muted); margin-top: 16px; }
-  .honest p strong { color: var(--ink); font-weight: 500; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 44px; margin-top: 28px; }
+  @media (max-width: 820px) { .cols { grid-template-columns: 1fr; gap: 24px; } }
+  .cols p { color: var(--muted); }
+  .cols p + p { margin-top: 14px; }
+  .cols strong { color: var(--ink); font-weight: 500; }
 
-  footer { padding: 48px 0 64px; }
-  footer .row { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 12px; }
-  footer p { font-size: 14px; color: var(--muted); }
-  footer a { color: var(--muted); }
-  footer a:hover { color: var(--ink); }
+  /* ---------- agents ---------- */
+  .agentgrid { margin-top: 28px; border: 1px solid var(--rule-strong); border-radius: 3px; overflow: hidden; }
+  .agentrow { display: grid; grid-template-columns: 200px 1fr; gap: 0; border-top: 1px solid var(--rule); background: var(--panel); }
+  .agentrow:first-child { border-top: none; }
+  @media (max-width: 700px) { .agentrow { grid-template-columns: 1fr; } }
+  .agentrow .path { font-family: 'JetBrains Mono', monospace; font-size: 13px; padding: 14px 16px; border-right: 1px solid var(--rule); }
+  @media (max-width: 700px) { .agentrow .path { border-right: none; padding-bottom: 0; } }
+  .agentrow .what { padding: 14px 16px; color: var(--muted); font-size: 14.5px; }
+
+  footer { padding: 40px 0 60px; border-top: 1px solid var(--rule); }
+  .frow { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 12px; }
+  footer p, footer a { font-size: 13.5px; color: var(--muted); }
+  footer .mono { font-size: 12.5px; color: var(--faint); }
 </style>
 </head>
 <body>
 
 <header>
   <div class="wrap nav">
-    <a class="wordmark" href="/">skillfile<span>.pro</span></a>
-    <a class="gh" href="https://github.com/d08m/skillfile">GitHub</a>
+    <a class="wordmark" href="/"><span>skillfile</span><span class="dim">.pro</span></a>
+    <nav class="navlinks">
+      <a href="#how">how it works</a>
+      <a href="#agents">for agents</a>
+      <a href="https://www.npmjs.com/package/skillfile">npm</a>
+      <a href="https://github.com/d08m/skillfile">github</a>
+    </nav>
   </div>
 </header>
 
 <main>
   <div class="wrap hero">
-    <div class="kicker">AGENTS.md · SKILL.md · one source</div>
-    <h1>Your agent context file is <em>already stale.</em></h1>
-    <p class="lede">Every coding agent reads a context file — and every context file rots the moment nobody remembers to update it by hand. <strong>skillfile generates AGENTS.md and Claude-format SKILL.md from your repo, deterministically, and fails your CI when they drift.</strong> No LLM calls. No API key. No config.</p>
-    <div class="install">
-      <span><span class="dollar">$</span> npx skillfile init</span>
-      <button onclick="navigator.clipboard.writeText('npx skillfile init');this.textContent='copied'">copy</button>
+    <div class="eyebrow">agents.md &middot; skill.md &middot; one source</div>
+    <h1>Your agent context file is a lockfile that nothing locks.</h1>
+    <p class="lede">Every coding agent reads a context file, and every context file rots the moment nobody updates it by hand. skillfile writes yours from a scan of the repo, stores a hash of what it saw, and <strong>fails your build when the two stop matching</strong>. No LLM calls, no API key, nothing to hallucinate.</p>
+    <div class="installrow">
+      <span class="install">
+        <span><span class="dollar">$</span> npx skillfile init</span>
+        <button id="copy" type="button">copy</button>
+      </span>
+      <span class="meta">node 18+ &middot; mit &middot; ~1s</span>
     </div>
-    <p class="sub">Node 18+ · MIT · scans package.json / pyproject / Cargo.toml / go.mod, README, structure, git log</p>
   </div>
+
+  <section id="how">
+    <div class="wrap">
+      <div class="label">How it works</div>
+      <h2>It reads six things, writes three files, and remembers one number.</h2>
+      <p class="sub">Nothing here is inferred or generated by a model. Every line of output traces to a file already in your repo, which is why the same repo always produces the same bytes.</p>
+
+      <div class="diagramwrap">
+        <svg viewBox="0 0 980 330" role="img" aria-labelledby="diagtitle diagdesc">
+          <title id="diagtitle">How skillfile works</title>
+          <desc id="diagdesc">skillfile reads your manifest, Makefile, README, directory structure, tooling markers and git log. It writes AGENTS.md, a Claude SKILL.md and a SKILLFILE.md manifest containing a source hash. The check command recomputes the hash and exits non-zero when the repo has drifted.</desc>
+
+          <!-- INPUT -->
+          <rect class="d-box" x="1" y="34" width="212" height="176" rx="3"/>
+          <text class="d-title" x="17" y="58">your repo</text>
+          <text class="d-item" x="17" y="82">package.json / pyproject</text>
+          <text class="d-item" x="17" y="101">Makefile targets</text>
+          <text class="d-item" x="17" y="120">README first paragraph</text>
+          <text class="d-item" x="17" y="139">top-level structure</text>
+          <text class="d-item" x="17" y="158">tooling markers (CI, tests)</text>
+          <text class="d-item" x="17" y="177">git branch + recent log</text>
+          <text class="d-note" x="17" y="199">gitignore-aware</text>
+
+          <path class="d-arrow" d="M213 122 H283" marker-end="url(#ah)"/>
+          <text class="d-note" x="218" y="113">read</text>
+
+          <!-- SCAN -->
+          <rect class="d-box" x="284" y="76" width="150" height="92" rx="3"/>
+          <text class="d-title" x="300" y="104">scan</text>
+          <text class="d-item" x="300" y="126">deterministic</text>
+          <text class="d-item" x="300" y="145">no model call</text>
+
+          <path class="d-arrow" d="M434 122 H504" marker-end="url(#ah)"/>
+          <text class="d-note" x="440" y="113">write</text>
+
+          <!-- OUTPUT -->
+          <rect class="d-box" x="505" y="34" width="228" height="176" rx="3"/>
+          <text class="d-title" x="521" y="58">committed to your repo</text>
+          <text class="d-item" x="521" y="84">AGENTS.md</text>
+          <text class="d-note" x="521" y="101">cursor, codex, copilot, gemini</text>
+          <text class="d-item" x="521" y="126">.claude/skills/&lt;name&gt;/SKILL.md</text>
+          <text class="d-note" x="521" y="143">claude code</text>
+          <text class="d-item" x="521" y="168">SKILLFILE.md</text>
+          <text class="d-note" x="521" y="185">holds source-hash: 5318&hellip;</text>
+
+          <path class="d-arrow" d="M733 122 H803" marker-end="url(#ah)"/>
+
+          <!-- CHECK -->
+          <rect class="d-box" x="804" y="76" width="164" height="92" rx="3"/>
+          <text class="d-title" x="820" y="104">check</text>
+          <text class="d-item d-fresh" x="820" y="126">match &rarr; exit 0</text>
+          <text class="d-item d-stale" x="820" y="145">differ &rarr; exit 1</text>
+
+          <!-- feedback loop -->
+          <path class="d-arrow" d="M886 168 V262 H107 V210" marker-end="url(#ah)" stroke-dasharray="4 4"/>
+          <text class="d-note" x="392" y="255">you change a script, add a directory, or adopt a new tool &mdash; the hash no longer matches, CI goes red</text>
+
+          <path class="d-arrow" d="M107 288 H886" marker-end="url(#ahl)" stroke-dasharray="4 4"/>
+          <text class="d-note" x="418" y="308">$ npx skillfile update &mdash; rewrites the files, hash matches again, build goes green</text>
+
+          <defs>
+            <marker id="ah" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+              <path d="M0,0 L7,3.5 L0,7 z" fill="#c9cbc7"/>
+            </marker>
+            <marker id="ahl" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+              <path d="M0,0 L7,3.5 L0,7 z" fill="#c9cbc7"/>
+            </marker>
+          </defs>
+        </svg>
+      </div>
+    </div>
+  </section>
 
   <section>
     <div class="wrap">
-      <div class="label">The mechanism</div>
-      <h2>Treat context like a lockfile, not documentation.</h2>
-      <div class="cols">
-        <div>
-          <p>A stale lockfile fails your build. A stale AGENTS.md just quietly lies to every agent that reads it — wrong commands, dead directories, decisions from three months ago.</p>
-          <p><strong>skillfile writes a content hash of what it saw into SKILLFILE.md.</strong> When your scripts, dependencies, structure, or activity change, <span style="font-family:'JetBrains Mono',monospace;font-size:15px">check</span> exits non-zero and your CI goes red — the same contract you already trust for lockfiles.</p>
-        </div>
-        <div class="filecard">
-          <div class="bar">SKILLFILE.md</div>
-          <pre><span class="c">---</span>
-<span class="c">generated-by:</span> skillfile.pro
-<span class="c">source-hash:</span> <span class="a">23f89e3c89180de3</span>
-<span class="c">---</span>
+      <div class="label">Try it</div>
+      <h2>Break the repo and watch the build turn red.</h2>
+      <p class="sub">The whole product is one comparison: does the hash in <code>SKILLFILE.md</code> still describe the repo in front of it? Change something below. Note what the last button does &mdash; and what it doesn't.</p>
 
-Hash changes when scripts, deps,
-structure, or activity change —
-<span class="a">not</span> on every run.</pre>
+      <div class="demo">
+        <div class="demo-pane">
+          <div class="pane-bar"><span>package.json</span><span id="repo-state">unchanged</span></div>
+          <div class="pane-body">
+<pre id="pkg"><span class="k">"scripts"</span>: {
+  <span class="k">"test"</span>: <span class="s">"node test/smoke.js"</span>,
+  <span class="k">"build"</span>: <span class="s">"tsc -p ."</span>
+},
+<span class="k">"dependencies"</span>: {
+  <span class="k">"commander"</span>: <span class="s">"^12.1.0"</span>
+}</pre>
+          </div>
+        </div>
+        <div class="demo-pane">
+          <div class="pane-bar"><span>SKILLFILE.md</span><span>generated earlier</span></div>
+          <div class="pane-body">
+<pre>---
+generated-by: https://skillfile.pro
+source-hash: <span id="hash-shown">53183589327afae1</span>
+---</pre>
+            <div class="status ok" id="status" role="status" aria-live="polite">
+              <span id="status-text">skillfile: up to date (2 targets).</span>
+              <span class="exit" id="status-exit">exit 0 &middot; build passes</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button type="button" data-change="script" aria-pressed="false">rename the build script</button>
+        <button type="button" data-change="dir" aria-pressed="false">add a src/ directory</button>
+        <button type="button" data-change="dep" aria-pressed="false">add a dependency</button>
+        <button type="button" data-change="commit" aria-pressed="false">make 30 commits</button>
+      </div>
+      <p class="controls hint" id="explain">Three of these change what an agent needs to know. One of them doesn't.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="label">Input and output</div>
+      <h2>This is skillfile's own repo, scanned by skillfile.</h2>
+      <p class="sub">Not a mockup. The panel on the right is the real committed <code>AGENTS.md</code> in github.com/d08m/skillfile, produced from the panel on the left.</p>
+
+      <div class="io">
+        <div class="filepanel">
+          <div class="pane-bar"><span>what it found</span></div>
+<pre><span class="c">// package.json</span>
+name: skillfile
+description: Generate and keep fresh&hellip;
+scripts:
+  test:        node test/smoke.js
+  check-tools: node scripts/check-tools.js
+
+<span class="c">// structure</span>
+.github/  bin/  scripts/
+site/  src/  test/  test-fixtures/
+
+<span class="c">// tooling markers</span>
+.github/workflows &rarr; CI configured
+test/             &rarr; test directory</pre>
+        </div>
+
+        <div class="midarrow">
+          <span class="big">&rarr;</span>
+          scan<br>~1s<br>no model
+        </div>
+
+        <div class="filepanel">
+          <div class="pane-bar"><span>AGENTS.md</span></div>
+<pre><span class="c">&lt;!-- skillfile:generated --&gt;</span>
+# skillfile
+
+Generate and keep fresh cross-agent
+context files, deterministically.
+
+## Commands
+
+- `test`: `node test/smoke.js`
+- `check-tools`: `node scripts/&hellip;`
+
+## Structure
+
+- `bin/`  - `src/`  - `test/`
+
+## Tooling
+
+- CI configured (`.github/workflows`)
+- Has a dedicated test directory</pre>
         </div>
       </div>
     </div>
@@ -183,19 +393,20 @@ structure, or activity change —
 
   <section>
     <div class="wrap">
-      <div class="label">Three commands, nothing else</div>
+      <div class="label">Three commands</div>
+      <h2>Nothing else to learn.</h2>
       <div class="three">
         <div class="cell">
           <div class="cmd">skillfile init</div>
-          <p>Scan the repo. Write AGENTS.md (read natively by Cursor, Codex, Copilot, Gemini CLI, 20+ tools) and .claude/skills/…/SKILL.md for Claude — same content, both conventions, one source. Refuses to overwrite a hand-written file.</p>
+          <p>Scan, then write <code>AGENTS.md</code> and <code>SKILL.md</code> &mdash; same content, both conventions, one source. Refuses to overwrite a file you wrote by hand.</p>
         </div>
         <div class="cell">
           <div class="cmd">skillfile update</div>
-          <p>Re-scan and rewrite. Deterministic, sub-second, free — there is no model in the loop, so there is nothing to pay for and nothing to hallucinate.</p>
+          <p>Re-scan and rewrite. Sub-second and free: there is no model in the loop, so there is nothing to pay for and nothing to invent.</p>
         </div>
         <div class="cell">
           <div class="cmd">skillfile check</div>
-          <p>Exit non-zero if the repo drifted since generation. Wire it into CI and a stale context file blocks the merge that made it stale.</p>
+          <p>Exit non-zero if the repo drifted since generation. In CI, a stale context file blocks the merge that made it stale.</p>
         </div>
       </div>
     </div>
@@ -203,32 +414,149 @@ structure, or activity change —
 
   <section class="ci">
     <div class="wrap">
-      <div class="label">CI in four lines</div>
-      <h2>The file that keeps itself honest.</h2>
-      <pre><span class="cm"># .github/workflows/ci.yml</span>
-<span class="k">- run:</span> npm install
-<span class="k">- run:</span> npm test
-<span class="cm"># stale AGENTS.md = red build</span>
-<span class="k">- run:</span> npx skillfile check</pre>
+      <div class="label">In CI</div>
+      <h2>Four lines, and the file keeps itself honest.</h2>
+<pre><span class="cm"># .github/workflows/ci.yml</span>
+- run: npm install
+- run: npm test
+<span class="cm"># a stale AGENTS.md fails the build, same as a stale lockfile</span>
+- run: <span class="k">npx skillfile check</span></pre>
+    </div>
+  </section>
+
+  <section id="agents">
+    <div class="wrap">
+      <div class="label">For agents</div>
+      <h2>This site is readable without rendering it.</h2>
+      <p class="sub">If you are an agent evaluating whether to install this, skip the page. These are plain text, no markup, no JavaScript.</p>
+      <div class="agentgrid">
+        <div class="agentrow">
+          <div class="path"><a href="/llms.txt">/llms.txt</a></div>
+          <div class="what">What skillfile does, what it writes, when to reach for it, and the exact commands &mdash; in the llms.txt convention.</div>
+        </div>
+        <div class="agentrow">
+          <div class="path"><a href="/skill.md">/skill.md</a></div>
+          <div class="what">A ready-to-install SKILL.md. Save it to <code>.claude/skills/skillfile/SKILL.md</code> and you can run the tool correctly without reading anything else.</div>
+        </div>
+        <div class="agentrow">
+          <div class="path"><a href="/AGENTS.md">/AGENTS.md</a></div>
+          <div class="what">skillfile's own generated context file, served as-is &mdash; the format's own output, describing the tool that made it.</div>
+        </div>
+      </div>
     </div>
   </section>
 
   <section>
-    <div class="wrap honest">
+    <div class="wrap">
       <div class="label">What it is not</div>
       <h2>A floor, not a ceiling.</h2>
-      <p>skillfile won't capture your architecture philosophy or the war stories behind your conventions — keep writing those by hand; it refuses to touch a hand-written file for exactly that reason.</p>
-      <p><strong>What it guarantees is the floor:</strong> any agent, any tool, cold session, always knows your real commands, real structure, and real recent activity — and CI proves that stays true.</p>
+      <div class="cols">
+        <div>
+          <p>skillfile will not capture your architecture philosophy or the war stories behind your conventions. <strong>Keep writing those by hand</strong> &mdash; it refuses to touch a hand-written file for exactly that reason.</p>
+          <p>It also won't guess. A repo that declares no commands anywhere renders "no scripts declared", because an invented command that an agent then runs is worse than silence.</p>
+        </div>
+        <div>
+          <p>What it guarantees is the floor: <strong>any agent, any tool, cold session, always knows your real commands, real structure and real dependencies</strong> &mdash; and CI proves that stays true.</p>
+          <p>Optional targets for <code>CLAUDE.md</code>, <code>GEMINI.md</code>, Cursor rules and Windsurf are one flag away, generated from the same scan.</p>
+        </div>
+      </div>
     </div>
   </section>
 </main>
 
 <footer>
-  <div class="wrap row">
-    <p>MIT licensed. <a href="https://github.com/d08m/skillfile">Source on GitHub</a>.</p>
-    <p style="font-family:'JetBrains Mono',monospace;font-size:13px">$ npx skillfile init</p>
+  <div class="wrap frow">
+    <p>MIT licensed. <a href="https://github.com/d08m/skillfile">Source</a> &middot; <a href="https://www.npmjs.com/package/skillfile">npm</a> &middot; <a href="/llms.txt">llms.txt</a></p>
+    <p class="mono">generated-by: skillfile.pro</p>
   </div>
 </footer>
+
+<script>
+(function () {
+  var copy = document.getElementById('copy');
+  copy.addEventListener('click', function () {
+    navigator.clipboard.writeText('npx skillfile init');
+    copy.textContent = 'copied';
+    setTimeout(function () { copy.textContent = 'copy'; }, 1600);
+  });
+
+  // Demo state. Three changes alter what an agent needs to know; commits do not.
+  var state = { script: false, dir: false, dep: false, commit: false };
+
+  var BASE_HASH = '53183589327afae1';
+  var pkg = document.getElementById('pkg');
+  var hashShown = document.getElementById('hash-shown');
+  var status = document.getElementById('status');
+  var statusText = document.getElementById('status-text');
+  var statusExit = document.getElementById('status-exit');
+  var repoState = document.getElementById('repo-state');
+  var explain = document.getElementById('explain');
+
+  // A small stable hash, so the number visibly follows the content.
+  // The real one is a stable hash of the whole scan, minus git and the timestamp.
+  function hash(str) {
+    var h1 = 0x811c9dc5, h2 = 0x01000193;
+    for (var i = 0; i < str.length; i++) {
+      h1 ^= str.charCodeAt(i); h1 = (h1 * 16777619) >>> 0;
+      h2 = ((h2 << 5) - h2 + str.charCodeAt(i)) >>> 0;
+    }
+    return (h1.toString(16) + h2.toString(16)).padEnd(16, '0').slice(0, 16);
+  }
+
+  function render() {
+    var build = state.script ? 'tsc --build' : 'tsc -p .';
+    var lines = [
+      '<span class="k">"scripts"</span>: {',
+      '  <span class="k">"test"</span>: <span class="s">"node test/smoke.js"</span>,',
+      '  <span class="k">"build"</span>: <span class="s">"' + (state.script ? '<span class="changed">tsc --build</span>' : 'tsc -p .') + '"</span>',
+      '},',
+      '<span class="k">"dependencies"</span>: {',
+      '  <span class="k">"commander"</span>: <span class="s">"^12.1.0"</span>' + (state.dep ? ',' : ''),
+      state.dep ? '  <span class="k changed">"zod"</span>: <span class="s">"^3.23.8"</span>' : '',
+      '}'
+    ].filter(Boolean);
+    if (state.dir) lines.push('', '<span class="k">// new: </span><span class="changed">src/parser/</span>');
+    pkg.innerHTML = lines.join('\n');
+
+    // The hash covers repo content. Commits are deliberately excluded.
+    var material = build + '|' + (state.dir ? 'src/parser' : '') + '|' + (state.dep ? 'zod' : '');
+    var drifted = state.script || state.dir || state.dep;
+    var shown = drifted ? hash(material) : BASE_HASH;
+    hashShown.textContent = shown;
+
+    repoState.textContent = state.commit && !drifted ? '30 commits later' : (drifted ? 'changed' : 'unchanged');
+
+    if (drifted) {
+      status.className = 'status bad';
+      statusText.textContent = 'skillfile: stale — the repo no longer matches SKILLFILE.md.';
+      statusExit.textContent = 'exit 1 · build fails · run `npx skillfile update`';
+    } else {
+      status.className = 'status ok';
+      statusText.textContent = 'skillfile: up to date (2 targets).';
+      statusExit.textContent = 'exit 0 · build passes';
+    }
+
+    if (state.commit && !drifted) {
+      explain.textContent = 'Thirty commits, same hash, green build. Commits and branch names are rendered into the file but deliberately kept out of the hash — otherwise committing the generated file would invalidate it, and check would fail on every push forever.';
+    } else if (drifted) {
+      explain.textContent = 'The commands, structure or dependencies moved, so the file an agent reads is now wrong. That is the only thing skillfile calls drift.';
+    } else {
+      explain.textContent = 'Three of these change what an agent needs to know. One of them doesn’t.';
+    }
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll('.controls button'), function (btn) {
+    btn.addEventListener('click', function () {
+      var key = btn.getAttribute('data-change');
+      state[key] = !state[key];
+      btn.setAttribute('aria-pressed', String(state[key]));
+      render();
+    });
+  });
+
+  render();
+})();
+</script>
 
 </body>
 </html>
