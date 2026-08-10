@@ -2,7 +2,7 @@
 
 Open-source CLI. Repo → agent-executable skills (`SKILL.md`) + `SKILLFILE.md` manifest, committed to the repo. Full context/decisions: Obsidian `Notes/Ventures/Skillfile.md`.
 
-Domain: skillfile.dev. Distribution = artifact-in-repo loop (the commit is the share). No paid tier — deferred until real demand appears. No marketing spend — search/discovery surfaces only, see vault note.
+Domain: skillfile.pro (registered 2026-08-10). Distribution = artifact-in-repo loop (the commit is the share). No paid tier — deferred until real demand appears. No marketing spend — search/discovery surfaces only, see vault note.
 
 ## Phase 0 — scope + scaffold
 - [ ] Confirm domain registered
@@ -25,7 +25,7 @@ Domain: skillfile.dev. Distribution = artifact-in-repo loop (the commit is the s
 - [ ] npm publish, GitHub topics (`agents-md`, `claude-code`, `mcp`, `ai-agents`)
 - [ ] MCP registry listing + `npx skills add` compatibility
 - [ ] One-time PRs: awesome-agent-skills, awesome-mcp-servers
-- [ ] skillfile.dev docs pages written to directly answer real dev search queries (geo-citation approach)
+- [ ] skillfile.pro docs pages written to directly answer real dev search queries (geo-citation approach)
 - [ ] ONE Show HN post + ONE relevant subreddit post, at this point only — not before, not repeated
 
 > Note the reframe: "platform first-party" is listed elsewhere in this plan as the biggest *threat* (Claude Code `/init` generates CLAUDE.md natively). It is both — the same platforms whose built-in generators compete with us are also the distribution surface that carries independent tools to six figures of reach. Ship to them; don't try to out-generate them.

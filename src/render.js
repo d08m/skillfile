@@ -3,10 +3,8 @@ const { stableHash } = require('./hash');
 /** Where the attribution line in every generated file points.
  *
  * This link is the distribution mechanism, not decoration — it ships inside
- * every adopter's repo, so it has to resolve for a stranger who clicks it.
- * skillfile.dev is not registered yet, so it points at the repo until it is;
- * flip this one constant when the domain is live. */
-const HOME = 'https://github.com/bolidee/skillfile';
+ * every adopter's repo, so it has to resolve for a stranger who clicks it. */
+const HOME = 'https://skillfile.pro';
 
 /** Fields that reflect real repo state — used for the freshness hash.
  *
