@@ -25,6 +25,9 @@ Domain: skillfile.pro (registered 2026-08-10). Distribution = artifact-in-repo l
 - [ ] npm publish, GitHub topics (`agents-md`, `claude-code`, `mcp`, `ai-agents`)
 - [ ] MCP registry listing + `npx skills add` compatibility
 - [ ] One-time PRs: awesome-agent-skills, awesome-mcp-servers
+- [x] **Own plugin marketplace (2026-08-10)** — `/plugin marketplace add d08m/skillfile` then `/plugin install skillfile@skillfile`. `claude plugin validate` passes; install verified end to end. No gatekeeper on this path.
+- [ ] **claude-community submission** — Console form `platform.claude.com/plugins/submit` (the claude.ai form needs a Team/Enterprise org). Its consent checkbox accepts Anthropic's Software Directory Terms, so Dominic submits. Approved plugins are pinned to a commit SHA; catalog syncs nightly. `claude-plugins-official` is curated at Anthropic's discretion and has no application process.
+- [x] ⛔ **OpenAI Codex marketplace — REMOVED as a channel (2026-08-10).** `openai/plugins` has issues disabled, zero merged PRs and no contribution templates; OpenAI pushes entries directly, and the 180 listings are overwhelmingly enterprise partners. `obra/superpowers` appears there, but was vendored in after 264k stars — inclusion is a consequence of traction, not a way to get it. The 2026-07-31 reorder was wrong to list this beside Anthropic's marketplace.
 - [ ] skillfile.pro docs pages written to directly answer real dev search queries (geo-citation approach)
 - [ ] ONE Show HN post + ONE relevant subreddit post, at this point only — not before, not repeated
 
