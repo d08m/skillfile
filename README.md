@@ -3,9 +3,9 @@
 Generate `AGENTS.md` and Claude-format `SKILL.md` from your repo, deterministically — no LLM calls, no API key, no config.
 
 ```
-npx github:bolidee/skillfile init     # scan repo, write AGENTS.md + .claude/skills/<name>/SKILL.md + SKILLFILE.md
-npx github:bolidee/skillfile update   # re-scan, rewrite (free)
-npx github:bolidee/skillfile check    # exit non-zero if the files are stale — wire into CI
+npx github:d08m/skillfile init     # scan repo, write AGENTS.md + .claude/skills/<name>/SKILL.md + SKILLFILE.md
+npx github:d08m/skillfile update   # re-scan, rewrite (free)
+npx github:d08m/skillfile check    # exit non-zero if the files are stale — wire into CI
 ```
 
 Not on npm yet, so the commands run straight from this repo. Once it is published
