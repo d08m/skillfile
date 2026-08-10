@@ -1,0 +1,21 @@
+{
+  "name": "skillfile",
+  "displayName": "skillfile",
+  "version": "0.1.0",
+  "description": "Generate AGENTS.md and Claude SKILL.md from a deterministic scan of the repo, and fail CI when they drift. No LLM calls, no API key.",
+  "author": {
+    "name": "d08m",
+    "url": "https://github.com/d08m"
+  },
+  "homepage": "https://skillfile.pro",
+  "repository": "https://github.com/d08m/skillfile",
+  "license": "MIT",
+  "keywords": [
+    "agents-md",
+    "claude-md",
+    "agent-context",
+    "documentation",
+    "ci",
+    "codebase-context"
+  ]
+}
