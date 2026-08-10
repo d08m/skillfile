@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>skillfile — agent context files that fail your build when they go stale</title>
-<meta name="description" content="skillfile scans your repo and writes AGENTS.md and Claude SKILL.md from what it actually finds. It stores a hash of the scan, so `skillfile check` fails CI when your commands, structure or dependencies drift. No LLM calls, no API key.">
+<meta name="description" content="Step through how skillfile works: it scans your repo, writes AGENTS.md and Claude SKILL.md, stores a hash of what it saw, and fails CI when the repo drifts. No LLM calls, no API key.">
 <link rel="canonical" href="https://skillfile.pro/">
 <link rel="alternate" type="text/plain" href="/llms.txt" title="Machine-readable summary for agents">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
@@ -12,564 +12,460 @@
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://skillfile.pro/">
 <meta property="og:title" content="skillfile — agent context files that fail your build when they go stale">
-<meta property="og:description" content="Generates AGENTS.md and Claude SKILL.md from a scan of your repo, then fails CI when they drift. No LLM calls, no API key.">
+<meta property="og:description" content="Scans your repo, writes AGENTS.md and Claude SKILL.md, stores a hash, and fails CI when they drift. No LLM calls, no API key.">
 <meta property="og:image" content="https://skillfile.pro/og.png">
 <meta property="og:image:width" content="2400">
 <meta property="og:image:height" content="1260">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="skillfile — agent context files that fail your build when they go stale">
-<meta name="twitter:description" content="Generates AGENTS.md and Claude SKILL.md from a scan of your repo, then fails CI when they drift. No LLM calls, no API key.">
+<meta name="twitter:description" content="Scans your repo, writes AGENTS.md and Claude SKILL.md, stores a hash, and fails CI when they drift.">
 <meta name="twitter:image" content="https://skillfile.pro/og.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
   :root {
     --ink: #12141a;
-    --paper: #fbfaf7;
-    --file: #ffffff;
-    --gutter: #f2f1ec;
+    --paper: #f4f3ef;
+    --card: #ffffff;
     --muted: #5f636b;
     --faint: #9aa0a8;
-    --rule: #e5e3dc;
-    --mark: #b9bec6;          /* markdown source marks: #, ---, > */
+    --rule: #dedcd4;
+    --wire: #c3c6bf;
     --fresh: #1a6b4a;
+    --fresh-lite: #3fbd8a;
     --fresh-bg: #e9f4ee;
     --stale: #b02a1f;
+    --stale-lite: #e0644f;
     --stale-bg: #fdeeec;
-    --add-bg: #eaf5ee;
-    --del-bg: #fdedeb;
     --key: #7b3fb5;
     --str: #1a6b4a;
-    --bar: #12141a;
+    --hl: #fdf3d2;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  html { -webkit-text-size-adjust: 100%; }
+  html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
   body {
-    background: var(--paper);
-    color: var(--ink);
+    background: var(--paper); color: var(--ink);
     font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 14.5px;
-    line-height: 1.75;
-    -webkit-font-smoothing: antialiased;
-    padding-bottom: 46px;                 /* room for the status bar */
+    font-size: 14px; line-height: 1.7; -webkit-font-smoothing: antialiased;
+    padding-bottom: 46px;
   }
-  a { color: inherit; text-underline-offset: 3px; text-decoration-color: var(--faint); }
-  a:hover { text-decoration-color: var(--ink); }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+  a { color: inherit; text-underline-offset: 3px; }
+  h1, h2, h3 { font-weight: 700; letter-spacing: -0.02em; }
 
-  /* ---- the file ---- */
-  .file {
-    max-width: 940px; margin: 0 auto; background: var(--file);
-    border-left: 1px solid var(--rule); border-right: 1px solid var(--rule);
-    min-height: 100vh;
-    counter-reset: ln;
-  }
-  /* Every direct block gets a line number in the gutter, like a file view. */
-  .ln { position: relative; padding: 0 32px 0 62px; }
-  .ln::before {
-    counter-increment: ln;
-    content: counter(ln);
-    position: absolute; left: 0; top: 0; width: 46px;
-    text-align: right; color: var(--faint); font-size: 12px; line-height: inherit;
-    user-select: none;
-  }
-  .ln.tall::before { top: 0; }
-  @media (max-width: 700px) {
-    .ln { padding: 0 16px 0 40px; }
-    .ln::before { width: 28px; font-size: 11px; }
-  }
-  .gap { height: 26px; }
-  .gap-lg { height: 48px; }
-  .rule { border-top: 1px solid var(--rule); }
-
-  /* ---- markdown source marks ---- */
-  .mk { color: var(--mark); user-select: none; }
-
-  h1 {
-    font-size: clamp(21px, 3.1vw, 30px); font-weight: 700; line-height: 1.35;
-    letter-spacing: -0.02em; max-width: 30ch;
-  }
-  h2 { font-size: clamp(16px, 2vw, 19px); font-weight: 700; letter-spacing: -0.01em; }
-  h3 { font-size: 14.5px; font-weight: 700; }
-  p { max-width: 68ch; color: var(--muted); }
-  p strong, li strong { color: var(--ink); font-weight: 500; }
-  .dim { color: var(--faint); }
-  em { font-style: italic; }
-
-  /* ---- header ---- */
-  .top { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; }
-  .brand { display: inline-flex; align-items: center; gap: 9px; text-decoration: none; font-weight: 700; }
-  .mark-ico { width: 20px; height: 20px; border-radius: 5px; background: var(--ink); display: inline-flex; flex-direction: column; justify-content: center; align-items: center; gap: 3px; flex: none; }
-  .mark-ico i { display: block; width: 11px; height: 2.2px; border-radius: 1.1px; background: #3fbd8a; }
-  .navl { display: flex; gap: 6px 16px; flex-wrap: wrap; font-size: 13px; }
+  /* ---------- header ---------- */
+  header { border-bottom: 1px solid var(--rule); }
+  .nav { display: flex; align-items: center; justify-content: space-between; gap: 8px 16px; padding: 16px 0; flex-wrap: wrap; }
+  .brand { display: inline-flex; align-items: center; gap: 9px; text-decoration: none; font-weight: 700; font-size: 15px; }
+  .ico { width: 21px; height: 21px; border-radius: 5px; background: var(--ink); display: inline-flex; align-items: flex-end; justify-content: center; gap: 1.6px; padding-bottom: 5px; flex: none; }
+  .ico i { display: block; width: 2.1px; border-radius: 1px; background: #f2f1ec; }
+  .ico i:nth-child(1) { height: 9px; }
+  .ico i:nth-child(2) { height: 6.5px; }
+  .ico i:nth-child(3) { height: 11px; }
+  .ico i:nth-child(4) { height: 5px; background: var(--fresh-lite); }
+  .navl { display: flex; gap: 6px 16px; font-size: 13px; flex-wrap: wrap; }
   .navl a { color: var(--muted); text-decoration: none; }
   .navl a:hover { color: var(--ink); }
 
-  /* ---- frontmatter block ---- */
-  .fm { color: var(--muted); }
-  .fm .k { color: var(--key); }
-  .fm .v { color: var(--str); }
-
-  /* ---- install ---- */
-  .cmdline { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
-  .cmd {
-    display: inline-flex; align-items: center; gap: 12px;
-    border: 1px solid var(--ink); border-radius: 2px; padding: 9px 12px;
-    font-weight: 500;
-  }
+  /* ---------- hero ---------- */
+  .hero { padding: 44px 0 26px; }
+  h1 { font-size: clamp(20px, 2.7vw, 27px); line-height: 1.35; max-width: 34ch; }
+  .hero p { margin-top: 12px; color: var(--muted); max-width: 62ch; }
+  .cmd { display: inline-flex; align-items: center; gap: 12px; margin-top: 20px; border: 1px solid var(--ink); border-radius: 2px; padding: 8px 12px; font-weight: 500; }
   .cmd .p { color: var(--faint); user-select: none; }
-  .cmd button {
-    font: inherit; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
-    background: var(--ink); color: var(--file); border: 0; border-radius: 2px;
-    padding: 3px 8px; cursor: pointer;
+  .cmd button { font: inherit; font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; background: var(--ink); color: #fff; border: 0; border-radius: 2px; padding: 3px 8px; cursor: pointer; }
+
+  /* ---------- the machine ---------- */
+  .machine { border-top: 1px solid var(--rule); padding: 26px 0 40px; }
+  .steprail { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 22px; }
+  .steprail button {
+    font: inherit; font-size: 12.5px; background: transparent; color: var(--muted);
+    border: 1px solid var(--rule); border-radius: 2px; padding: 6px 11px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 8px;
   }
+  .steprail button:hover { border-color: var(--ink); color: var(--ink); }
+  .steprail button[aria-selected="true"] { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .steprail .n { opacity: 0.55; font-size: 11px; }
 
-  /* ---- diff ---- */
-  .diff { border: 1px solid var(--rule); border-radius: 2px; overflow: hidden; font-size: 13px; }
-  .diff .row { display: grid; grid-template-columns: 22px 1fr; }
-  .diff .sign { text-align: center; color: var(--faint); user-select: none; }
-  .diff .del { background: var(--del-bg); }
-  .diff .del .sign { color: var(--stale); }
-  .diff .add { background: var(--add-bg); }
-  .diff .add .sign { color: var(--fresh); }
-  .diff .txt { padding-right: 10px; overflow-x: auto; white-space: pre; }
-  .diff .ctx { color: var(--muted); }
+  .stages { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0; align-items: stretch; }
+  @media (max-width: 1000px) { .stages { grid-template-columns: repeat(2, 1fr); gap: 14px; } }
+  @media (max-width: 620px) { .stages { grid-template-columns: 1fr; gap: 12px; } }
 
-  /* ---- panels ---- */
-  .panel { border: 1px solid var(--rule); border-radius: 2px; background: var(--file); }
-  .panel .bar {
-    padding: 7px 12px; border-bottom: 1px solid var(--rule); background: var(--gutter);
-    font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; gap: 10px;
+  .stage { position: relative; padding-right: 26px; transition: opacity .18s ease; }
+  @media (max-width: 1000px) { .stage { padding-right: 0; } }
+  .stage:last-child { padding-right: 0; }
+  .stage.off { opacity: 0.34; }
+
+  /* connector */
+  .stage:not(:last-child)::after {
+    content: ''; position: absolute; right: 6px; top: 50%; width: 14px; height: 1px;
+    background: var(--wire);
   }
-  .panel pre { padding: 12px; overflow-x: auto; font-size: 13px; line-height: 1.7; }
-  .panel .k { color: var(--key); }
-  .panel .s { color: var(--str); }
-  .panel .c { color: var(--faint); }
-  .hl { background: #fdf3d2; padding: 0 2px; }
-
-  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-  @media (max-width: 780px) { .two { grid-template-columns: 1fr; } }
-
-  /* ---- diagram ---- */
-  .diagram { overflow-x: auto; border: 1px solid var(--rule); border-radius: 2px; background: var(--file); padding: 14px 0; }
-  .diagram svg { display: block; min-width: 700px; width: 100%; height: auto; }
-  .d-box { fill: var(--file); stroke: #cfd2cb; stroke-width: 1; }
-  .d-t { font: 700 12.5px 'JetBrains Mono', monospace; fill: var(--ink); }
-  .d-i { font: 400 11px 'JetBrains Mono', monospace; fill: var(--muted); }
-  .d-n { font: 400 11px 'JetBrains Mono', monospace; fill: var(--muted); }
-  .d-a { stroke: #cfd2cb; stroke-width: 1; fill: none; }
-  .g { fill: var(--fresh); } .r { fill: var(--stale); }
-
-  /* ---- demo ---- */
-  .btns { display: flex; flex-wrap: wrap; gap: 8px; }
-  .btns button {
-    font: inherit; font-size: 12.5px; background: var(--file); color: var(--ink);
-    border: 1px solid #cfd2cb; border-radius: 2px; padding: 7px 11px; cursor: pointer;
+  .stage:not(:last-child)::before {
+    content: ''; position: absolute; right: 6px; top: 50%; margin-top: -3px;
+    border-left: 5px solid var(--wire); border-top: 3px solid transparent; border-bottom: 3px solid transparent;
   }
-  .btns button:hover { border-color: var(--ink); }
-  .btns button[aria-pressed="true"] { background: var(--ink); color: var(--file); border-color: var(--ink); }
-  .note { font-size: 13px; color: var(--muted); max-width: 74ch; }
+  @media (max-width: 1000px) { .stage::after, .stage::before { display: none; } }
 
-  .callout { border-left: 2px solid var(--ink); padding-left: 12px; }
+  .box { background: var(--card); border: 1px solid var(--rule); border-radius: 3px; height: 100%; display: flex; flex-direction: column; }
+  .stage.on .box { border-color: var(--ink); box-shadow: 0 1px 0 var(--ink); }
+  .stage.on.bad .box { border-color: var(--stale); box-shadow: 0 1px 0 var(--stale); }
+  .box .h { padding: 7px 10px; border-bottom: 1px solid var(--rule); font-size: 11.5px; color: var(--muted); display: flex; justify-content: space-between; gap: 6px; }
+  .stage.on .box .h { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .stage.on.bad .box .h { background: var(--stale); border-color: var(--stale); }
+  .box .b { padding: 10px; font-size: 11.5px; line-height: 1.75; flex: 1; overflow-x: auto; }
+  .box .b pre { white-space: pre; }
+  .k { color: var(--key); } .s { color: var(--str); } .c { color: var(--faint); }
+  .ok { color: var(--fresh); } .no { color: var(--stale); }
+  .mark { background: var(--hl); }
+  .del { background: var(--stale-bg); color: var(--stale); display: block; }
+  .add { background: var(--fresh-bg); color: var(--fresh); display: block; }
 
-  /* ---- list ---- */
-  ul { list-style: none; }
-  li { color: var(--muted); max-width: 70ch; padding-left: 18px; position: relative; }
-  li::before { content: '-'; position: absolute; left: 0; color: var(--mark); }
+  .caption { margin-top: 22px; display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap; }
+  .caption .num { font-size: 12px; color: var(--faint); flex: none; }
+  .caption p { color: var(--muted); max-width: 80ch; }
+  .caption strong { color: var(--ink); font-weight: 500; }
+  .stepnav { margin-top: 18px; display: flex; gap: 8px; }
+  .stepnav button { font: inherit; font-size: 12.5px; background: var(--card); border: 1px solid var(--rule); border-radius: 2px; padding: 6px 12px; cursor: pointer; color: var(--ink); }
+  .stepnav button:hover { border-color: var(--ink); }
+  .stepnav button[disabled] { opacity: .4; cursor: default; }
 
-  /* ---- status bar ---- */
+  /* ---------- lower sections ---------- */
+  section { border-top: 1px solid var(--rule); padding: 34px 0; }
+  h2 { font-size: 17px; }
+  section > .wrap > p { margin-top: 10px; color: var(--muted); max-width: 70ch; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 20px; }
+  @media (max-width: 820px) { .grid3 { grid-template-columns: 1fr; } }
+  .tile { background: var(--card); border: 1px solid var(--rule); border-radius: 3px; padding: 16px; }
+  .tile h3 { font-size: 13.5px; }
+  .tile h3::before { content: '$ '; color: var(--faint); font-weight: 400; }
+  .tile p { margin-top: 8px; color: var(--muted); font-size: 13px; }
+  .links { margin-top: 18px; display: grid; gap: 8px; }
+  .links a { color: var(--muted); }
+  .links b { color: var(--ink); font-weight: 500; }
+  footer { border-top: 1px solid var(--rule); padding: 24px 0 40px; color: var(--faint); font-size: 13px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+
+  /* ---------- status bar ---------- */
   .statusbar {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
-    background: var(--bar); color: #d8dae0; font-size: 12.5px;
-    display: flex; align-items: center; gap: 0; height: 34px;
-    border-top: 1px solid #000;
+    background: var(--ink); color: #d8dae0; font-size: 12.5px;
+    display: flex; align-items: center; height: 34px; border-top: 1px solid #000;
   }
-  .statusbar .seg { padding: 0 12px; white-space: nowrap; }
   .statusbar .state { font-weight: 700; color: #0e1013; padding: 0 12px; height: 100%; display: flex; align-items: center; }
-  .statusbar .state.ok { background: #3fbd8a; }
-  .statusbar .state.bad { background: #e0644f; }
+  .statusbar .state.ok { background: var(--fresh-lite); }
+  .statusbar .state.bad { background: var(--stale-lite); }
+  .statusbar .seg { padding: 0 12px; white-space: nowrap; }
   .statusbar .spacer { flex: 1; }
-  .statusbar .hide-sm { }
-  @media (max-width: 640px) { .statusbar .hide-sm { display: none; } }
+  @media (max-width: 700px) { .statusbar .hide-sm { display: none; } }
 </style>
 </head>
 <body>
 
-<div class="file">
-
-  <div class="gap"></div>
-  <div class="ln top">
-    <a class="brand" href="/"><span class="mark-ico" aria-hidden="true"><i></i><i></i></span>skillfile</a>
+<header>
+  <div class="wrap nav">
+    <a class="brand" href="/"><span class="ico" aria-hidden="true"><i></i><i></i><i></i><i></i></span>skillfile</a>
     <nav class="navl">
-      <a href="#how">how</a><a href="#try">try</a><a href="#agents">agents</a>
+      <a href="#machine">how it works</a>
+      <a href="#commands">commands</a>
+      <a href="#agents">for agents</a>
       <a href="https://www.npmjs.com/package/skillfile">npm</a>
       <a href="https://github.com/d08m/skillfile">github</a>
     </nav>
   </div>
-  <div class="gap"></div>
-  <div class="ln rule"></div>
-  <div class="gap"></div>
+</header>
 
-  <div class="ln fm"><span class="mk">---</span></div>
-  <div class="ln fm"><span class="k">generated-by</span>: <span class="v">https://skillfile.pro</span></div>
-  <div class="ln fm"><span class="k">source-hash</span>: <span class="v">53183589327afae1</span></div>
-  <div class="ln fm"><span class="k">status</span>: <span class="v">up to date</span></div>
-  <div class="ln fm"><span class="mk">---</span></div>
-  <div class="gap"></div>
-
-  <div class="ln"><h1><span class="mk"># </span>Your agent context file is a lockfile that nothing locks.</h1></div>
-  <div class="gap"></div>
-  <div class="ln"><p>Every coding agent reads a context file. Every context file rots the moment nobody updates it by hand.</p></div>
-  <div class="gap"></div>
-  <div class="ln"><p>skillfile writes yours from a scan of the repo, stores a hash of what it saw, and <strong>fails your build when the two stop matching.</strong> No model in the loop, so nothing to pay for and nothing to invent.</p></div>
-  <div class="gap"></div>
-  <div class="ln cmdline">
-    <span class="cmd"><span class="p">$</span> npx skillfile init <button id="copy" type="button">copy</button></span>
-    <span class="dim">node 18+ · mit · ~1s</span>
+<main>
+  <div class="wrap hero">
+    <h1>Your agent context file is a lockfile that nothing locks.</h1>
+    <p>skillfile writes it from a scan of your repo, remembers a hash of what it saw, and fails your build when the two stop matching.</p>
+    <div class="cmd"><span class="p">$</span> npx skillfile init <button id="copy" type="button">copy</button></div>
   </div>
-  <div class="gap-lg"></div>
-  <div class="ln rule"></div>
-  <div class="gap"></div>
 
-  <!-- ============ THE PROBLEM, AS A DIFF ============ -->
-  <div class="ln"><h2 id="drift"><span class="mk">## </span>What going stale actually looks like</h2></div>
-  <div class="gap"></div>
-  <div class="ln"><p>Someone renames a script. The context file every agent reads still names the old one, and nothing anywhere complains.</p></div>
-  <div class="gap"></div>
-  <div class="ln">
-    <div class="diff">
-      <div class="row"><span class="sign">&nbsp;</span><span class="txt ctx">## Commands</span></div>
-      <div class="row"><span class="sign">&nbsp;</span><span class="txt ctx">&nbsp;</span></div>
-      <div class="row del"><span class="sign">-</span><span class="txt">- `build`: `tsc -p .`          ← what AGENTS.md still says</span></div>
-      <div class="row add"><span class="sign">+</span><span class="txt">- `build`: `vite build`        ← what the repo actually does</span></div>
-      <div class="row"><span class="sign">&nbsp;</span><span class="txt ctx">&nbsp;</span></div>
-      <div class="row"><span class="sign">&nbsp;</span><span class="txt ctx">Your agent runs the first one. It fails. It guesses.</span></div>
+  <div class="wrap machine" id="machine">
+    <div class="steprail" role="tablist" aria-label="How skillfile works">
+      <button role="tab" data-step="0" aria-selected="true"><span class="n">01</span> scan</button>
+      <button role="tab" data-step="1" aria-selected="false"><span class="n">02</span> write</button>
+      <button role="tab" data-step="2" aria-selected="false"><span class="n">03</span> commit</button>
+      <button role="tab" data-step="3" aria-selected="false"><span class="n">04</span> something changes</button>
+      <button role="tab" data-step="4" aria-selected="false"><span class="n">05</span> CI catches it</button>
+      <button role="tab" data-step="5" aria-selected="false"><span class="n">06</span> update</button>
     </div>
-  </div>
-  <div class="gap-lg"></div>
-  <div class="ln rule"></div>
-  <div class="gap"></div>
 
-  <!-- ============ HOW ============ -->
-  <div class="ln"><h2 id="how"><span class="mk">## </span>Six inputs, three files, one number</h2></div>
-  <div class="gap"></div>
-  <div class="ln"><p>Nothing is inferred. Every line traces to a file already in your repo, which is why the same repo always produces the same bytes.</p></div>
-  <div class="gap"></div>
-  <div class="ln">
-    <div class="diagram">
-      <svg viewBox="0 0 960 300" role="img" aria-labelledby="dt dd">
-        <title id="dt">How skillfile works</title>
-        <desc id="dd">skillfile reads the manifest, Makefile, README, structure, tooling markers and git log, writes AGENTS.md, a Claude SKILL.md and a SKILLFILE.md holding a source hash, and the check command exits non-zero once the repo drifts.</desc>
+    <div class="stages">
+      <!-- 1 REPO -->
+      <div class="stage" data-stage="repo">
+        <div class="box">
+          <div class="h"><span>your repo</span><span id="repo-tag">6 sources</span></div>
+          <div class="b"><pre id="repo-body"><span class="c">package.json</span>
+  name     skillfile
+  <span class="k">build</span>    <span class="s">tsc -p .</span>
+  <span class="k">test</span>     <span class="s">node test/…</span>
 
-        <rect class="d-box" x="14" y="26" width="206" height="168" rx="2"/>
-        <text class="d-t" x="28" y="48">your repo</text>
-        <text class="d-i" x="28" y="72">package.json / pyproject</text>
-        <text class="d-i" x="28" y="91">Makefile targets</text>
-        <text class="d-i" x="28" y="110">README first paragraph</text>
-        <text class="d-i" x="28" y="129">top-level structure</text>
-        <text class="d-i" x="28" y="148">tooling markers</text>
-        <text class="d-i" x="28" y="167">git branch + log</text>
-        <text class="d-n" x="28" y="186" fill="#9aa0a8">gitignore-aware</text>
+<span class="c">structure</span>
+  src/ bin/ test/
 
-        <path class="d-a" d="M220 110 H288" marker-end="url(#a)"/>
-        <text class="d-n" x="228" y="102">read</text>
-
-        <rect class="d-box" x="289" y="72" width="140" height="76" rx="2"/>
-        <text class="d-t" x="303" y="96">scan</text>
-        <text class="d-i" x="303" y="118">deterministic</text>
-        <text class="d-i" x="303" y="136">no model call</text>
-
-        <path class="d-a" d="M429 110 H497" marker-end="url(#a)"/>
-        <text class="d-n" x="437" y="102">write</text>
-
-        <rect class="d-box" x="498" y="26" width="230" height="168" rx="2"/>
-        <text class="d-t" x="512" y="48">committed to your repo</text>
-        <text class="d-i" x="512" y="74">AGENTS.md</text>
-        <text class="d-n" x="512" y="91" fill="#9aa0a8">cursor codex copilot gemini</text>
-        <text class="d-i" x="512" y="117">.claude/skills/&lt;name&gt;/SKILL.md</text>
-        <text class="d-n" x="512" y="134" fill="#9aa0a8">claude code</text>
-        <text class="d-i" x="512" y="160">SKILLFILE.md</text>
-        <text class="d-n" x="512" y="177" fill="#9aa0a8">source-hash: 5318…</text>
-
-        <path class="d-a" d="M728 110 H796" marker-end="url(#a)"/>
-
-        <rect class="d-box" x="797" y="72" width="150" height="76" rx="2"/>
-        <text class="d-t" x="811" y="96">check</text>
-        <text class="d-i g" x="811" y="118">match → exit 0</text>
-        <text class="d-i r" x="811" y="136">differ → exit 1</text>
-
-        <path class="d-a" d="M872 148 V232 H117 V194" marker-end="url(#a)" stroke-dasharray="3 3"/>
-        <text class="d-n" x="300" y="258">a script, a directory or a dependency moved</text>
-        <text class="d-i" x="300" y="278">$ npx skillfile update</text>
-        <text class="d-n" x="470" y="278">rewrites the files, build goes green</text>
-
-        <defs>
-          <marker id="a" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
-            <path d="M0,0 L6,3 L0,6 z" fill="#cfd2cb"/>
-          </marker>
-        </defs>
-      </svg>
-    </div>
-  </div>
-  <div class="gap-lg"></div>
-  <div class="ln rule"></div>
-  <div class="gap"></div>
-
-  <!-- ============ TRY ============ -->
-  <div class="ln"><h2 id="try"><span class="mk">## </span>Break it and watch the bar turn red</h2></div>
-  <div class="gap"></div>
-  <div class="ln"><p>The whole product is one comparison. Change something below, then look at the status bar pinned to the bottom of this page.</p></div>
-  <div class="gap"></div>
-  <div class="ln">
-    <div class="two">
-      <div class="panel">
-        <div class="bar"><span>package.json</span><span id="repo-state">unchanged</span></div>
-<pre id="pkg"><span class="k">"scripts"</span>: {
-  <span class="k">"test"</span>: <span class="s">"node test/smoke.js"</span>,
-  <span class="k">"build"</span>: <span class="s">"tsc -p ."</span>
-},
-<span class="k">"dependencies"</span>: {
-  <span class="k">"commander"</span>: <span class="s">"^12.1.0"</span>
-}</pre>
+<span class="c">markers</span>
+  .github/workflows
+  README.md
+  git log</pre></div>
+        </div>
       </div>
-      <div class="panel">
-        <div class="bar"><span>SKILLFILE.md</span><span>generated earlier</span></div>
-<pre><span class="c">---</span>
-generated-by: skillfile.pro
-source-hash: <span id="hash-shown">53183589327afae1</span>
-<span class="c">---</span>
 
-<span id="check-out" class="s">$ npx skillfile check
-skillfile: up to date (2 targets).</span></pre>
+      <!-- 2 SCAN -->
+      <div class="stage" data-stage="scan">
+        <div class="box">
+          <div class="h"><span>scan</span><span>~1s</span></div>
+          <div class="b"><pre>read the manifest
+read Makefile targets
+read README first ¶
+list top-level dirs
+detect CI + tests
+read branch + log
+
+<span class="c">no model call</span>
+<span class="c">no api key</span>
+<span class="c">same in → same out</span></pre></div>
+        </div>
+      </div>
+
+      <!-- 3 FILES -->
+      <div class="stage" data-stage="files">
+        <div class="box">
+          <div class="h"><span>files written</span><span id="files-tag">3</span></div>
+          <div class="b"><pre id="files-body">AGENTS.md
+<span class="c">  cursor codex copilot</span>
+
+SKILL.md
+<span class="c">  claude code</span>
+
+SKILLFILE.md
+  <span class="k">source-hash</span>
+  <span class="s" id="files-hash">53183589327afae1</span></pre></div>
+        </div>
+      </div>
+
+      <!-- 4 DRIFT -->
+      <div class="stage" data-stage="drift">
+        <div class="box">
+          <div class="h"><span>the repo moves on</span><span id="drift-tag">later</span></div>
+          <div class="b"><pre id="drift-body"><span class="c">nothing changed yet</span>
+
+the files still
+describe the repo
+in front of them
+
+<span class="c">hash unchanged</span></pre></div>
+        </div>
+      </div>
+
+      <!-- 5 CHECK -->
+      <div class="stage" data-stage="check">
+        <div class="box">
+          <div class="h"><span>npx skillfile check</span><span id="check-tag">CI</span></div>
+          <div class="b"><pre id="check-body"><span class="ok">hash in SKILLFILE.md
+== hash of the repo
+
+skillfile: up to date
+exit 0
+
+build passes</span></pre></div>
+        </div>
       </div>
     </div>
-  </div>
-  <div class="gap"></div>
-  <div class="ln btns">
-    <button type="button" data-change="script" aria-pressed="false">rename the build script</button>
-    <button type="button" data-change="dir" aria-pressed="false">add a src/ directory</button>
-    <button type="button" data-change="dep" aria-pressed="false">add a dependency</button>
-    <button type="button" data-change="commit" aria-pressed="false">make 30 commits</button>
-  </div>
-  <div class="gap"></div>
-  <div class="ln"><p class="note" id="explain">Three of these change what an agent needs to know. One of them doesn't.</p></div>
-  <div class="gap-lg"></div>
-  <div class="ln rule"></div>
-  <div class="gap"></div>
 
-  <!-- ============ REAL OUTPUT ============ -->
-  <div class="ln"><h2><span class="mk">## </span>Its own repo, scanned by itself</h2></div>
-  <div class="gap"></div>
-  <div class="ln"><p>Not a mockup. The right panel is the committed <a href="https://skillfile.pro/AGENTS.md">AGENTS.md</a> in github.com/d08m/skillfile, produced from the left.</p></div>
-  <div class="gap"></div>
-  <div class="ln">
-    <div class="two">
-      <div class="panel">
-        <div class="bar"><span>what it found</span><span class="c">input</span></div>
-<pre><span class="c">// package.json</span>
-name: skillfile
-scripts:
-  test:        node test/smoke.js
-  check-tools: node scripts/check-tools.js
-  sync-site:   node scripts/sync-site.js
+    <div class="caption">
+      <span class="num" id="cap-num">01 / 06</span>
+      <p id="cap-text"><strong>skillfile reads six things and nothing else.</strong> The manifest, Makefile targets, the README's first paragraph, your top-level structure, tooling markers like a CI or test directory, and the git branch and log. It is gitignore-aware, and there is no model in the loop — so the same repo always produces the same bytes.</p>
+    </div>
 
-<span class="c">// structure</span>
-.github/ bin/ scripts/ site/
-skills/ src/ test/
-
-<span class="c">// tooling markers</span>
-.github/workflows → CI configured
-test/             → test directory</pre>
-      </div>
-      <div class="panel">
-        <div class="bar"><span>AGENTS.md</span><span class="c">output</span></div>
-<pre><span class="c">&lt;!-- skillfile:generated --&gt;</span>
-# skillfile
-
-Generate and keep fresh cross-agent
-context files, deterministically.
-
-## Commands
-
-- `test`: `node test/smoke.js`
-- `check-tools`: `node scripts/…`
-- `sync-site`: `node scripts/…`
-
-## Tooling
-
-- CI configured (`.github/workflows`)
-- Has a dedicated test directory</pre>
-      </div>
+    <div class="stepnav">
+      <button id="prev" type="button">← back</button>
+      <button id="next" type="button">next →</button>
     </div>
   </div>
-  <div class="gap-lg"></div>
-  <div class="ln rule"></div>
-  <div class="gap"></div>
 
-  <!-- ============ COMMANDS ============ -->
-  <div class="ln"><h2><span class="mk">## </span>Three commands, nothing else to learn</h2></div>
-  <div class="gap"></div>
-  <div class="ln"><h3>$ skillfile init</h3></div>
-  <div class="ln"><p>Scan, then write <code>AGENTS.md</code> and <code>SKILL.md</code> — same content, both conventions, one source. Refuses to overwrite a file you wrote by hand.</p></div>
-  <div class="gap"></div>
-  <div class="ln"><h3>$ skillfile update</h3></div>
-  <div class="ln"><p>Re-scan and rewrite. Sub-second and free.</p></div>
-  <div class="gap"></div>
-  <div class="ln"><h3>$ skillfile check</h3></div>
-  <div class="ln"><p>Exit non-zero if the repo drifted. In CI, a stale context file blocks the merge that made it stale.</p></div>
-  <div class="gap"></div>
-  <div class="ln">
-    <div class="panel">
-      <div class="bar"><span>.github/workflows/ci.yml</span><span class="c">four lines</span></div>
-<pre>- run: npm install
-- run: npm test
-<span class="c"># a stale AGENTS.md fails the build, same as a stale lockfile</span>
-- run: npx skillfile check</pre>
+  <section id="commands">
+    <div class="wrap">
+      <h2>Three commands, nothing else to learn</h2>
+      <div class="grid3">
+        <div class="tile">
+          <h3>skillfile init</h3>
+          <p>Scan, then write both conventions from one source. Refuses to overwrite a file you wrote by hand.</p>
+        </div>
+        <div class="tile">
+          <h3>skillfile update</h3>
+          <p>Re-scan and rewrite. Sub-second and free — there is no model to pay for.</p>
+        </div>
+        <div class="tile">
+          <h3>skillfile check</h3>
+          <p>Exit non-zero if the repo drifted. In CI, a stale context file blocks the merge that made it stale.</p>
+        </div>
+      </div>
     </div>
-  </div>
-  <div class="gap-lg"></div>
-  <div class="ln rule"></div>
-  <div class="gap"></div>
+  </section>
 
-  <!-- ============ AGENTS ============ -->
-  <div class="ln"><h2 id="agents"><span class="mk">## </span>Readable without rendering</h2></div>
-  <div class="gap"></div>
-  <div class="ln"><p>If you are an agent deciding whether to install this, skip the page. Plain text, no markup, no JavaScript.</p></div>
-  <div class="gap"></div>
-  <div class="ln"><ul>
-    <li><a href="/llms.txt">/llms.txt</a> — what it does, when to reach for it, the exact commands.</li>
-    <li><a href="/skill.md">/skill.md</a> — a ready-to-install SKILL.md. Save to <code>.claude/skills/skillfile/SKILL.md</code>.</li>
-    <li><a href="/AGENTS.md">/AGENTS.md</a> — its own generated context file, served as-is.</li>
-  </ul></div>
-  <div class="gap"></div>
-  <div class="ln"><p>Or install it as a Claude Code plugin:</p></div>
-  <div class="gap"></div>
-  <div class="ln cmdline"><span class="cmd"><span class="p">$</span> claude plugin marketplace add d08m/skillfile</span></div>
-  <div class="gap-lg"></div>
-  <div class="ln rule"></div>
-  <div class="gap"></div>
+  <section id="agents">
+    <div class="wrap">
+      <h2>Readable without rendering this page</h2>
+      <p>If you are an agent deciding whether to install this: plain text, no markup, no JavaScript.</p>
+      <div class="links">
+        <a href="/llms.txt"><b>/llms.txt</b> — what it does, when to reach for it, the exact commands</a>
+        <a href="/skill.md"><b>/skill.md</b> — a ready-to-install SKILL.md</a>
+        <a href="/AGENTS.md"><b>/AGENTS.md</b> — its own generated context file, served as-is</a>
+      </div>
+      <p style="margin-top:16px">Or install it as a Claude Code plugin: <code>claude plugin marketplace add d08m/skillfile</code></p>
+    </div>
+  </section>
 
-  <!-- ============ NOT ============ -->
-  <div class="ln"><h2><span class="mk">## </span>A floor, not a ceiling</h2></div>
-  <div class="gap"></div>
-  <div class="ln"><div class="callout">
-    <p>skillfile will not capture your architecture philosophy or the war stories behind your conventions. Keep writing those by hand — it refuses to touch a hand-written file for exactly that reason.</p>
-  </div></div>
-  <div class="gap"></div>
-  <div class="ln"><p>It also won't guess. A repo that declares no commands anywhere renders <em>no scripts declared</em>, because an invented command that an agent then runs is worse than silence.</p></div>
-  <div class="gap"></div>
-  <div class="ln"><p>What it guarantees is the floor: <strong>any agent, any tool, cold session, always knows your real commands, structure and dependencies</strong> — and CI proves that stays true.</p></div>
-  <div class="gap-lg"></div>
-  <div class="ln rule"></div>
-  <div class="gap"></div>
+  <section>
+    <div class="wrap">
+      <h2>A floor, not a ceiling</h2>
+      <p>skillfile will not capture your architecture philosophy or the reasons behind your conventions — keep writing those by hand, which is why it refuses to touch a hand-written file. It also won't guess: a repo that declares no commands renders "no scripts declared", because an invented command an agent then runs is worse than silence.</p>
+    </div>
+  </section>
 
-  <div class="ln top">
-    <span class="dim">MIT · <a href="https://github.com/d08m/skillfile">source</a> · <a href="https://www.npmjs.com/package/skillfile">npm</a> · <a href="/llms.txt">llms.txt</a></span>
-    <span class="dim">generated-by: skillfile.pro</span>
-  </div>
-  <div class="gap-lg"></div>
-
-</div>
+  <footer class="wrap">
+    <span>MIT · <a href="https://github.com/d08m/skillfile">source</a> · <a href="https://www.npmjs.com/package/skillfile">npm</a></span>
+    <span>generated-by: skillfile.pro</span>
+  </footer>
+</main>
 
 <div class="statusbar" role="status" aria-live="polite">
   <span class="state ok" id="sb-state">✓ up to date</span>
   <span class="seg">$ npx skillfile check</span>
-  <span class="seg hide-sm dim" id="sb-msg">2 targets · exit 0</span>
+  <span class="seg hide-sm" id="sb-msg" style="color:#9aa0a8">2 targets · exit 0</span>
   <span class="spacer"></span>
-  <span class="seg hide-sm dim">source-hash</span>
+  <span class="seg hide-sm" style="color:#9aa0a8">source-hash</span>
   <span class="seg" id="sb-hash">53183589327afae1</span>
 </div>
 
 <script>
 (function () {
   var copy = document.getElementById('copy');
-  copy.addEventListener('click', function (e) {
-    e.preventDefault();
+  copy.addEventListener('click', function () {
     navigator.clipboard.writeText('npx skillfile init');
     copy.textContent = 'copied';
-    setTimeout(function () { copy.textContent = 'copy'; }, 1600);
+    setTimeout(function () { copy.textContent = 'copy'; }, 1500);
   });
 
-  var state = { script: false, dir: false, dep: false, commit: false };
-  var BASE = '53183589327afae1';
+  var HASH_OK = '53183589327afae1';
+  var HASH_DRIFT = '9f160df435503ebf';
 
-  var pkg = document.getElementById('pkg');
-  var hashShown = document.getElementById('hash-shown');
-  var checkOut = document.getElementById('check-out');
-  var repoState = document.getElementById('repo-state');
-  var explain = document.getElementById('explain');
-  var sbState = document.getElementById('sb-state');
-  var sbMsg = document.getElementById('sb-msg');
-  var sbHash = document.getElementById('sb-hash');
+  var el = {
+    stages: document.querySelectorAll('.stage'),
+    tabs: document.querySelectorAll('.steprail button'),
+    capNum: document.getElementById('cap-num'),
+    capText: document.getElementById('cap-text'),
+    prev: document.getElementById('prev'),
+    next: document.getElementById('next'),
+    repoBody: document.getElementById('repo-body'),
+    repoTag: document.getElementById('repo-tag'),
+    filesTag: document.getElementById('files-tag'),
+    filesHash: document.getElementById('files-hash'),
+    driftBody: document.getElementById('drift-body'),
+    driftTag: document.getElementById('drift-tag'),
+    checkBody: document.getElementById('check-body'),
+    checkTag: document.getElementById('check-tag'),
+    sbState: document.getElementById('sb-state'),
+    sbMsg: document.getElementById('sb-msg'),
+    sbHash: document.getElementById('sb-hash')
+  };
 
-  // A small stable hash so the number visibly follows the content. The real one
-  // hashes the whole scan, minus git and the timestamp.
-  function hash(str) {
-    var a = 0x811c9dc5, b = 0x01000193;
-    for (var i = 0; i < str.length; i++) {
-      a ^= str.charCodeAt(i); a = (a * 16777619) >>> 0;
-      b = ((b << 5) - b + str.charCodeAt(i)) >>> 0;
+  var REPO_CLEAN =
+    '<span class="c">package.json</span>\n  name     skillfile\n  <span class="k">build</span>    <span class="s">tsc -p .</span>\n  <span class="k">test</span>     <span class="s">node test/…</span>\n\n<span class="c">structure</span>\n  src/ bin/ test/\n\n<span class="c">markers</span>\n  .github/workflows\n  README.md\n  git log';
+
+  var REPO_CHANGED =
+    '<span class="c">package.json</span>\n  name     skillfile\n  <span class="k">build</span>    <span class="s mark">vite build</span>\n  <span class="k">test</span>     <span class="s">node test/…</span>\n\n<span class="c">structure</span>\n  src/ bin/ test/ <span class="mark">parser/</span>\n\n<span class="c">markers</span>\n  .github/workflows\n  README.md\n  git log';
+
+  var steps = [
+    {
+      lit: ['repo'], bad: false, hash: HASH_OK, ok: true,
+      text: '<strong>skillfile reads six things and nothing else.</strong> The manifest, Makefile targets, the README’s first paragraph, your top-level structure, tooling markers like a CI or test directory, and the git branch and log. It is gitignore-aware, and there is no model in the loop — so the same repo always produces the same bytes.'
+    },
+    {
+      lit: ['repo', 'scan', 'files'], bad: false, hash: HASH_OK, ok: true,
+      text: '<strong>It writes three files.</strong> <code>AGENTS.md</code> for the tools that read that convention, a Claude-format <code>SKILL.md</code>, and <code>SKILLFILE.md</code> — which carries a hash of everything the scan saw. Same content, both conventions, one source, so they cannot drift apart from each other.'
+    },
+    {
+      lit: ['files'], bad: false, hash: HASH_OK, ok: true,
+      text: '<strong>You commit them, like a lockfile.</strong> Now every agent that opens the repo — cold, with no memory of your project — reads the real commands and the real structure. Note the hash does <em>not</em> change when you commit: branch and commit log are rendered into the files but deliberately left out of it, or the check below would fail on every single push.'
+    },
+    {
+      lit: ['repo', 'drift'], bad: true, hash: HASH_DRIFT, ok: true,
+      text: '<strong>Weeks later, someone swaps the build tool and adds a directory.</strong> Nobody remembers the context files exist. They now describe a repo that no longer exists, and every agent reading them is being confidently misinformed. This is the moment the whole product is built for.'
+    },
+    {
+      lit: ['drift', 'check'], bad: true, hash: HASH_DRIFT, ok: false,
+      text: '<strong>The hash no longer matches, so CI goes red.</strong> <code>npx skillfile check</code> exits 1 and blocks the merge that made the files stale — the same contract you already trust for a lockfile. Look at the bar at the bottom of this page.'
+    },
+    {
+      lit: ['files', 'check'], bad: false, hash: HASH_DRIFT, ok: true,
+      text: '<strong>One command puts it back.</strong> <code>npx skillfile update</code> re-scans, rewrites both files and stores the new hash. Green again. Nobody had to remember anything, and nothing was invented — the fix is just the scan, run again.'
     }
-    return (a.toString(16) + b.toString(16)).padEnd(16, '0').slice(0, 16);
-  }
+  ];
 
-  function render() {
-    var lines = [
-      '<span class="k">"scripts"</span>: {',
-      '  <span class="k">"test"</span>: <span class="s">"node test/smoke.js"</span>,',
-      '  <span class="k">"build"</span>: <span class="s">"' + (state.script ? '<span class="hl">vite build</span>' : 'tsc -p .') + '"</span>',
-      '},',
-      '<span class="k">"dependencies"</span>: {',
-      '  <span class="k">"commander"</span>: <span class="s">"^12.1.0"</span>' + (state.dep ? ',' : ''),
-      state.dep ? '  <span class="k">"zod"</span>: <span class="s hl">"^3.23.8"</span>' : '',
-      '}'
-    ].filter(Boolean);
-    if (state.dir) lines.push('', '<span class="c">// new directory </span><span class="hl">src/parser/</span>');
-    pkg.innerHTML = lines.join('\n');
+  function render(i) {
+    var s = steps[i];
 
-    var drifted = state.script || state.dir || state.dep;
-    var material = (state.script ? 'vite' : 'tsc') + '|' + (state.dir ? 'src/parser' : '') + '|' + (state.dep ? 'zod' : '');
-    var shown = drifted ? hash(material) : BASE;
-
-    hashShown.textContent = shown;
-    sbHash.textContent = shown;
-    repoState.textContent = drifted ? 'changed' : (state.commit ? '30 commits later' : 'unchanged');
-
-    if (drifted) {
-      checkOut.className = '';
-      checkOut.style.color = '#b02a1f';
-      checkOut.textContent = '$ npx skillfile check\nskillfile: stale — repo has drifted.\nexit 1';
-      sbState.className = 'state bad';
-      sbState.textContent = '✕ stale';
-      sbMsg.textContent = 'run `npx skillfile update` · exit 1';
-    } else {
-      checkOut.className = 's';
-      checkOut.style.color = '';
-      checkOut.textContent = '$ npx skillfile check\nskillfile: up to date (2 targets).';
-      sbState.className = 'state ok';
-      sbState.textContent = '✓ up to date';
-      sbMsg.textContent = '2 targets · exit 0';
-    }
-
-    if (state.commit && !drifted) {
-      explain.textContent = 'Thirty commits, same hash, green bar. Commits and branch names are rendered into the file but kept out of the hash on purpose — otherwise committing the generated file would invalidate it, and check would fail on every push forever.';
-    } else if (drifted) {
-      explain.textContent = 'The commands, structure or dependencies moved, so the file an agent reads is now wrong. That is the only thing skillfile calls drift.';
-    } else {
-      explain.textContent = 'Three of these change what an agent needs to know. One of them doesn’t.';
-    }
-  }
-
-  Array.prototype.forEach.call(document.querySelectorAll('.btns button'), function (btn) {
-    btn.addEventListener('click', function () {
-      var k = btn.getAttribute('data-change');
-      state[k] = !state[k];
-      btn.setAttribute('aria-pressed', String(state[k]));
-      render();
+    el.stages.forEach(function (st) {
+      var name = st.getAttribute('data-stage');
+      var on = s.lit.indexOf(name) !== -1;
+      st.classList.toggle('on', on);
+      st.classList.toggle('off', !on);
+      st.classList.toggle('bad', on && s.bad && (name === 'drift' || (name === 'check' && !s.ok)));
     });
-  });
 
-  render();
+    el.tabs.forEach(function (t, n) { t.setAttribute('aria-selected', String(n === i)); });
+
+    el.capNum.textContent = '0' + (i + 1) + ' / 06';
+    el.capText.innerHTML = s.text;
+
+    var changed = i >= 3;
+    el.repoBody.innerHTML = changed ? REPO_CHANGED : REPO_CLEAN;
+    el.repoTag.textContent = changed ? 'changed' : '6 sources';
+    el.filesHash.textContent = i === 5 ? HASH_DRIFT : HASH_OK;
+    el.filesTag.textContent = i === 5 ? 'rewritten' : '3';
+
+    if (i < 3) {
+      el.driftTag.textContent = 'later';
+      el.driftBody.innerHTML = '<span class="c">nothing changed yet</span>\n\nthe files still\ndescribe the repo\nin front of them\n\n<span class="c">hash unchanged</span>';
+    } else if (i === 5) {
+      el.driftTag.textContent = 'resolved';
+      el.driftBody.innerHTML = '<span class="c">re-scanned</span>\n\n<span class="add">+ build: vite build</span>\n<span class="add">+ parser/</span>\n\nthe files match\nthe repo again';
+    } else {
+      el.driftTag.textContent = 'drifted';
+      el.driftBody.innerHTML = '<span class="del">- build: tsc -p .</span>\n<span class="add">+ build: vite build</span>\n<span class="add">+ parser/</span>\n\n<span class="c">AGENTS.md still\nsays the old one</span>';
+    }
+
+    if (s.ok) {
+      el.checkBody.innerHTML = '<span class="ok">hash in SKILLFILE.md\n== hash of the repo\n\nskillfile: up to date\nexit 0\n\nbuild passes</span>';
+      el.checkTag.textContent = 'CI';
+      el.sbState.className = 'state ok';
+      el.sbState.textContent = '✓ up to date';
+      el.sbMsg.textContent = '2 targets · exit 0';
+    } else {
+      el.checkBody.innerHTML = '<span class="no">hash in SKILLFILE.md\n!= hash of the repo\n\nskillfile: stale\nexit 1\n\nmerge blocked</span>';
+      el.checkTag.textContent = 'red';
+      el.sbState.className = 'state bad';
+      el.sbState.textContent = '✕ stale';
+      el.sbMsg.textContent = 'run `npx skillfile update` · exit 1';
+    }
+
+    el.sbHash.textContent = s.hash;
+    el.prev.disabled = i === 0;
+    el.next.disabled = i === steps.length - 1;
+    current = i;
+  }
+
+  var current = 0;
+  el.tabs.forEach(function (t) {
+    t.addEventListener('click', function () { render(parseInt(t.getAttribute('data-step'), 10)); });
+  });
+  el.prev.addEventListener('click', function () { if (current > 0) render(current - 1); });
+  el.next.addEventListener('click', function () { if (current < steps.length - 1) render(current + 1); });
+
+  render(0);
 })();
 </script>
 
