@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>skillfile — agent context files that fail your build when they go stale</title>
-<meta name="description" content="Step through how skillfile works: it scans your repo, writes AGENTS.md and Claude SKILL.md, stores a hash of what it saw, and fails CI when the repo drifts. No LLM calls, no API key.">
+<meta name="description" content="Watch how skillfile works: it scans your repo, writes AGENTS.md and Claude SKILL.md, seals them with a hash, and fails CI the moment the repo drifts. No LLM calls, no API key.">
 <link rel="canonical" href="https://skillfile.pro/">
 <link rel="alternate" type="text/plain" href="/llms.txt" title="Machine-readable summary for agents">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
@@ -12,152 +12,197 @@
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://skillfile.pro/">
 <meta property="og:title" content="skillfile — agent context files that fail your build when they go stale">
-<meta property="og:description" content="Scans your repo, writes AGENTS.md and Claude SKILL.md, stores a hash, and fails CI when they drift. No LLM calls, no API key.">
+<meta property="og:description" content="Scans your repo, seals the context files with a hash, and fails CI when they drift. No LLM calls, no API key.">
 <meta property="og:image" content="https://skillfile.pro/og.png">
 <meta property="og:image:width" content="2400">
 <meta property="og:image:height" content="1260">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="skillfile — agent context files that fail your build when they go stale">
-<meta name="twitter:description" content="Scans your repo, writes AGENTS.md and Claude SKILL.md, stores a hash, and fails CI when they drift.">
+<meta name="twitter:description" content="Scans your repo, seals the context files with a hash, and fails CI when they drift.">
 <meta name="twitter:image" content="https://skillfile.pro/og.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --ink: #12141a;
-    --paper: #f4f3ef;
-    --card: #ffffff;
-    --muted: #5f636b;
-    --faint: #9aa0a8;
-    --rule: #dedcd4;
-    --wire: #c3c6bf;
-    --fresh: #1a6b4a;
-    --fresh-lite: #3fbd8a;
-    --fresh-bg: #e9f4ee;
-    --stale: #b02a1f;
-    --stale-lite: #e0644f;
-    --stale-bg: #fdeeec;
-    --key: #7b3fb5;
-    --str: #1a6b4a;
-    --hl: #fdf3d2;
+  :root{
+    --ink:#0b0d10;
+    --paper:#f0ece3;
+    --paper-2:#e6e1d5;
+    --line:#0b0d10;
+    --green:#20e08a;
+    --green-d:#0f7a4a;
+    --red:#ff5647;
+    --red-d:#c02718;
+    --amber:#ffc53d;
+    --chip:#efeade;
+    --dim:#6b7280;
   }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
-  body {
-    background: var(--paper); color: var(--ink);
-    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 14px; line-height: 1.7; -webkit-font-smoothing: antialiased;
-    padding-bottom: 46px;
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+  body{
+    background:var(--paper);color:var(--ink);
+    font-family:'Space Grotesk',system-ui,sans-serif;
+    font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;
+    padding-bottom:44px;
   }
-  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
-  a { color: inherit; text-underline-offset: 3px; }
-  h1, h2, h3 { font-weight: 700; letter-spacing: -0.02em; }
+  .mono{font-family:'JetBrains Mono',ui-monospace,monospace}
+  .wrap{max-width:1240px;margin:0 auto;padding:0 28px}
+  a{color:inherit}
 
-  /* ---------- header ---------- */
-  header { border-bottom: 1px solid var(--rule); }
-  .nav { display: flex; align-items: center; justify-content: space-between; gap: 8px 16px; padding: 16px 0; flex-wrap: wrap; }
-  .brand { display: inline-flex; align-items: center; gap: 9px; text-decoration: none; font-weight: 700; font-size: 15px; }
-  .ico { width: 21px; height: 21px; border-radius: 5px; background: var(--ink); display: inline-flex; align-items: flex-end; justify-content: center; gap: 1.6px; padding-bottom: 5px; flex: none; }
-  .ico i { display: block; width: 2.1px; border-radius: 1px; background: #f2f1ec; }
-  .ico i:nth-child(1) { height: 9px; }
-  .ico i:nth-child(2) { height: 6.5px; }
-  .ico i:nth-child(3) { height: 11px; }
-  .ico i:nth-child(4) { height: 5px; background: var(--fresh-lite); }
-  .navl { display: flex; gap: 6px 16px; font-size: 13px; flex-wrap: wrap; }
-  .navl a { color: var(--muted); text-decoration: none; }
-  .navl a:hover { color: var(--ink); }
+  /* ---------------- header ---------------- */
+  header{border-bottom:3px solid var(--line)}
+  .nav{display:flex;align-items:center;justify-content:space-between;gap:10px 18px;padding:16px 0;flex-wrap:wrap}
+  .brand{display:inline-flex;align-items:center;gap:10px;text-decoration:none;font-weight:700;font-size:19px;letter-spacing:-0.03em}
+  .ico{width:24px;height:24px;border-radius:6px;background:var(--ink);display:inline-flex;align-items:flex-end;justify-content:center;gap:2px;padding-bottom:5px;flex:none}
+  .ico i{display:block;width:2.4px;border-radius:1.2px;background:var(--paper)}
+  .ico i:nth-child(1){height:10px}.ico i:nth-child(2){height:7px}
+  .ico i:nth-child(3){height:13px}.ico i:nth-child(4){height:5px;background:var(--green)}
+  .navl{display:flex;gap:8px 20px;flex-wrap:wrap;font-size:14px;font-weight:500}
+  .navl a{text-decoration:none;color:var(--ink);opacity:.62}
+  .navl a:hover{opacity:1}
 
-  /* ---------- hero ---------- */
-  .hero { padding: 44px 0 26px; }
-  h1 { font-size: clamp(20px, 2.7vw, 27px); line-height: 1.35; max-width: 34ch; }
-  .hero p { margin-top: 12px; color: var(--muted); max-width: 62ch; }
-  .cmd { display: inline-flex; align-items: center; gap: 12px; margin-top: 20px; border: 1px solid var(--ink); border-radius: 2px; padding: 8px 12px; font-weight: 500; }
-  .cmd .p { color: var(--faint); user-select: none; }
-  .cmd button { font: inherit; font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; background: var(--ink); color: #fff; border: 0; border-radius: 2px; padding: 3px 8px; cursor: pointer; }
-
-  /* ---------- the machine ---------- */
-  .machine { border-top: 1px solid var(--rule); padding: 26px 0 40px; }
-  .steprail { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 22px; }
-  .steprail button {
-    font: inherit; font-size: 12.5px; background: transparent; color: var(--muted);
-    border: 1px solid var(--rule); border-radius: 2px; padding: 6px 11px; cursor: pointer;
-    display: inline-flex; align-items: center; gap: 8px;
+  /* ---------------- hero ---------------- */
+  .hero{padding:56px 0 44px;display:grid;grid-template-columns:1.35fr .65fr;gap:40px;align-items:end}
+  @media(max-width:900px){.hero{grid-template-columns:1fr;gap:24px;padding:36px 0 30px}}
+  h1{
+    font-size:clamp(38px,6.4vw,86px);line-height:.95;letter-spacing:-0.045em;font-weight:700;
+    text-wrap:balance;
   }
-  .steprail button:hover { border-color: var(--ink); color: var(--ink); }
-  .steprail button[aria-selected="true"] { background: var(--ink); color: #fff; border-color: var(--ink); }
-  .steprail .n { opacity: 0.55; font-size: 11px; }
-
-  .stages { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0; align-items: stretch; }
-  @media (max-width: 1000px) { .stages { grid-template-columns: repeat(2, 1fr); gap: 14px; } }
-  @media (max-width: 620px) { .stages { grid-template-columns: 1fr; gap: 12px; } }
-
-  .stage { position: relative; padding-right: 26px; transition: opacity .18s ease; }
-  @media (max-width: 1000px) { .stage { padding-right: 0; } }
-  .stage:last-child { padding-right: 0; }
-  .stage.off { opacity: 0.34; }
-
-  /* connector */
-  .stage:not(:last-child)::after {
-    content: ''; position: absolute; right: 6px; top: 50%; width: 14px; height: 1px;
-    background: var(--wire);
+  h1 .u{
+    background:linear-gradient(transparent 62%, var(--green) 62%, var(--green) 92%, transparent 92%);
   }
-  .stage:not(:last-child)::before {
-    content: ''; position: absolute; right: 6px; top: 50%; margin-top: -3px;
-    border-left: 5px solid var(--wire); border-top: 3px solid transparent; border-bottom: 3px solid transparent;
+  .kick{font-size:14px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;margin-bottom:20px}
+  .hero p{font-size:18px;max-width:46ch;color:#2b2f36}
+  .runbox{border:3px solid var(--line);background:var(--ink);color:var(--paper);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+  .runbox code{font-family:'JetBrains Mono',monospace;font-size:15px}
+  .runbox button{font:inherit;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;background:var(--green);color:var(--ink);border:0;padding:6px 10px;cursor:pointer}
+  .meta{margin-top:10px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--dim)}
+
+  /* ---------------- the machine ---------------- */
+  .machine{background:var(--ink);color:var(--paper);border-top:3px solid var(--line);border-bottom:3px solid var(--line)}
+  .machine .wrap{padding-top:30px;padding-bottom:34px}
+  .mhead{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;flex-wrap:wrap;margin-bottom:22px}
+  .mhead h2{font-size:clamp(22px,3vw,34px);letter-spacing:-0.03em;line-height:1.05}
+  .mhead .auto{font-family:'JetBrains Mono',monospace;font-size:12px;color:#8b93a1}
+
+  .film{position:relative;overflow-x:auto;overflow-y:hidden}
+  .film svg{display:block;min-width:940px;width:100%;height:auto}
+
+  /* stage-driven state: everything keys off data-step on .machine */
+  #chips g{transition:transform .55s cubic-bezier(.5,.05,.2,1),opacity .35s ease}
+  #doc{transition:opacity .4s ease,transform .5s cubic-bezier(.5,.05,.2,1)}
+  #sealG{transition:transform .45s cubic-bezier(.34,1.56,.64,1),opacity .35s ease}
+  #crack{transition:opacity .35s ease}
+  #gateArm{transition:transform .5s cubic-bezier(.5,.05,.2,1)}
+  #beam{transition:opacity .35s ease}
+  .lab{font-family:'JetBrains Mono',monospace;font-size:13px;fill:#8b93a1}
+  .labw{font-family:'JetBrains Mono',monospace;font-size:13px;fill:var(--paper)}
+  .big{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:19px;fill:var(--paper);letter-spacing:-0.02em}
+  .hashtx{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:15px;fill:var(--ink)}
+
+  /* default hidden things */
+  #doc{opacity:0}
+  #sealG{opacity:0;transform:scale(2.4);transform-origin:905px 292px}
+  #crack{opacity:0}
+  #beam{opacity:0}
+
+  .machine[data-step="0"] #beam{opacity:1}
+  .machine[data-step="0"] #chips g{transform:translate(300px,0);opacity:.15}
+
+  .machine[data-step="1"] #doc,
+  .machine[data-step="2"] #doc,
+  .machine[data-step="3"] #doc,
+  .machine[data-step="4"] #doc,
+  .machine[data-step="5"] #doc{opacity:1}
+
+  .machine[data-step="1"] #sealG,
+  .machine[data-step="2"] #sealG,
+  .machine[data-step="3"] #sealG,
+  .machine[data-step="4"] #sealG,
+  .machine[data-step="5"] #sealG{opacity:1;transform:scale(1)}
+
+  .machine[data-step="1"] #chips g{transform:translate(300px,0);opacity:.15}
+  .machine[data-step="2"] #chips g{opacity:.85}
+
+  /* step 4: repo changed — chip 2 turns amber and the seal cracks */
+  .machine[data-step="3"] #chipBuild rect,
+  .machine[data-step="4"] #chipBuild rect,
+  .machine[data-step="5"] #chipBuild rect{fill:var(--amber)}
+  /* the build command itself changes — swap the label, don't just tint it.
+     Keep these opacities in CSS: an inline style would outrank the rules below. */
+  #buildOld,#buildNew{transition:opacity .3s ease}
+  #buildNew{opacity:0}
+  .machine[data-step="3"] #buildOld,
+  .machine[data-step="4"] #buildOld,
+  .machine[data-step="5"] #buildOld{opacity:0}
+  .machine[data-step="3"] #buildNew,
+  .machine[data-step="4"] #buildNew,
+  .machine[data-step="5"] #buildNew{opacity:1}
+  .machine[data-step="5"] #chipNew{opacity:1}
+  .machine[data-step="3"] #chipNew,
+  .machine[data-step="4"] #chipNew{opacity:1}
+  .machine[data-step="3"] #crack,
+  .machine[data-step="4"] #crack{opacity:1}
+  .machine[data-step="3"] #seal,
+  .machine[data-step="4"] #seal{fill:var(--red)}
+
+  /* step 5: gate closes */
+  .machine[data-step="4"] #gateArm{transform:rotate(0deg)}
+  .machine[data-step="4"] #gateBox{fill:var(--red-d)}
+
+  #chipNew{opacity:0;transition:opacity .4s ease}
+  #gateArm{transform:rotate(-76deg);transform-origin:1100px 212px}
+  #gateBox{transition:fill .4s ease}
+  #seal{transition:fill .4s ease}
+
+  /* rail */
+  .rail{display:flex;gap:10px;margin-top:26px;flex-wrap:wrap}
+  .rail button{
+    font:inherit;font-family:'JetBrains Mono',monospace;font-size:12.5px;
+    background:transparent;color:#98a0ae;border:2px solid #2b3038;padding:8px 12px;cursor:pointer;
+    display:flex;gap:9px;align-items:baseline;
   }
-  @media (max-width: 1000px) { .stage::after, .stage::before { display: none; } }
+  .rail button:hover{border-color:#5d6675;color:var(--paper)}
+  .rail button[aria-selected="true"]{background:var(--paper);color:var(--ink);border-color:var(--paper)}
+  .rail .n{font-weight:700;opacity:.5}
 
-  .box { background: var(--card); border: 1px solid var(--rule); border-radius: 3px; height: 100%; display: flex; flex-direction: column; }
-  .stage.on .box { border-color: var(--ink); box-shadow: 0 1px 0 var(--ink); }
-  .stage.on.bad .box { border-color: var(--stale); box-shadow: 0 1px 0 var(--stale); }
-  .box .h { padding: 7px 10px; border-bottom: 1px solid var(--rule); font-size: 11.5px; color: var(--muted); display: flex; justify-content: space-between; gap: 6px; }
-  .stage.on .box .h { background: var(--ink); color: #fff; border-color: var(--ink); }
-  .stage.on.bad .box .h { background: var(--stale); border-color: var(--stale); }
-  .box .b { padding: 10px; font-size: 11.5px; line-height: 1.75; flex: 1; overflow-x: auto; }
-  .box .b pre { white-space: pre; }
-  .k { color: var(--key); } .s { color: var(--str); } .c { color: var(--faint); }
-  .ok { color: var(--fresh); } .no { color: var(--stale); }
-  .mark { background: var(--hl); }
-  .del { background: var(--stale-bg); color: var(--stale); display: block; }
-  .add { background: var(--fresh-bg); color: var(--fresh); display: block; }
+  .say{margin-top:24px;display:grid;grid-template-columns:110px 1fr;gap:22px;align-items:start}
+  @media(max-width:700px){.say{grid-template-columns:1fr;gap:8px}}
+  .say .num{font-size:clamp(46px,7vw,74px);font-weight:700;line-height:.8;letter-spacing:-0.05em;color:#59616e}
+  .say p{font-size:clamp(16px,1.5vw,19px);max-width:74ch;color:#c9cfd8}
+  .say strong{color:var(--paper);font-weight:700}
+  .say code{font-family:'JetBrains Mono',monospace;font-size:.9em;color:var(--green)}
 
-  .caption { margin-top: 22px; display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap; }
-  .caption .num { font-size: 12px; color: var(--faint); flex: none; }
-  .caption p { color: var(--muted); max-width: 80ch; }
-  .caption strong { color: var(--ink); font-weight: 500; }
-  .stepnav { margin-top: 18px; display: flex; gap: 8px; }
-  .stepnav button { font: inherit; font-size: 12.5px; background: var(--card); border: 1px solid var(--rule); border-radius: 2px; padding: 6px 12px; cursor: pointer; color: var(--ink); }
-  .stepnav button:hover { border-color: var(--ink); }
-  .stepnav button[disabled] { opacity: .4; cursor: default; }
+  /* ---------------- lower ---------------- */
+  section{border-bottom:3px solid var(--line)}
+  section .wrap{padding:44px 28px}
+  h2{font-size:clamp(24px,3vw,36px);letter-spacing:-0.035em;line-height:1.05}
+  .lede{margin-top:12px;font-size:17px;max-width:64ch;color:#2b2f36}
+  .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:0;margin-top:26px;border:3px solid var(--line)}
+  @media(max-width:820px){.cards{grid-template-columns:1fr}}
+  .card{padding:22px;border-right:3px solid var(--line)}
+  .card:last-child{border-right:0}
+  @media(max-width:820px){.card{border-right:0;border-bottom:3px solid var(--line)}.card:last-child{border-bottom:0}}
+  .card h3{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700}
+  .card h3::before{content:'$ ';color:var(--dim)}
+  .card p{margin-top:10px;font-size:15px;color:#3a3f47}
+  .rows{margin-top:24px;border:3px solid var(--line)}
+  .row{display:grid;grid-template-columns:180px 1fr;border-bottom:3px solid var(--line)}
+  .row:last-child{border-bottom:0}
+  @media(max-width:640px){.row{grid-template-columns:1fr}}
+  .row .p{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:14px;padding:14px 18px;border-right:3px solid var(--line);text-decoration:none}
+  @media(max-width:640px){.row .p{border-right:0;padding-bottom:0}}
+  .row .d{padding:14px 18px;color:#3a3f47;font-size:15px}
+  footer{padding:26px 28px 46px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--dim);max-width:1240px;margin:0 auto}
 
-  /* ---------- lower sections ---------- */
-  section { border-top: 1px solid var(--rule); padding: 34px 0; }
-  h2 { font-size: 17px; }
-  section > .wrap > p { margin-top: 10px; color: var(--muted); max-width: 70ch; }
-  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 20px; }
-  @media (max-width: 820px) { .grid3 { grid-template-columns: 1fr; } }
-  .tile { background: var(--card); border: 1px solid var(--rule); border-radius: 3px; padding: 16px; }
-  .tile h3 { font-size: 13.5px; }
-  .tile h3::before { content: '$ '; color: var(--faint); font-weight: 400; }
-  .tile p { margin-top: 8px; color: var(--muted); font-size: 13px; }
-  .links { margin-top: 18px; display: grid; gap: 8px; }
-  .links a { color: var(--muted); }
-  .links b { color: var(--ink); font-weight: 500; }
-  footer { border-top: 1px solid var(--rule); padding: 24px 0 40px; color: var(--faint); font-size: 13px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
-
-  /* ---------- status bar ---------- */
-  .statusbar {
-    position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
-    background: var(--ink); color: #d8dae0; font-size: 12.5px;
-    display: flex; align-items: center; height: 34px; border-top: 1px solid #000;
-  }
-  .statusbar .state { font-weight: 700; color: #0e1013; padding: 0 12px; height: 100%; display: flex; align-items: center; }
-  .statusbar .state.ok { background: var(--fresh-lite); }
-  .statusbar .state.bad { background: var(--stale-lite); }
-  .statusbar .seg { padding: 0 12px; white-space: nowrap; }
-  .statusbar .spacer { flex: 1; }
-  @media (max-width: 700px) { .statusbar .hide-sm { display: none; } }
+  /* ---------------- status bar ---------------- */
+  .statusbar{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--ink);color:#c9cfd8;height:44px;display:flex;align-items:center;font-family:'JetBrains Mono',monospace;font-size:13px;border-top:3px solid var(--line)}
+  .statusbar .state{font-weight:700;color:var(--ink);padding:0 16px;height:100%;display:flex;align-items:center;transition:background .3s ease}
+  .statusbar .state.ok{background:var(--green)}
+  .statusbar .state.bad{background:var(--red)}
+  .statusbar .seg{padding:0 14px;white-space:nowrap}
+  .statusbar .spacer{flex:1}
+  @media(max-width:760px){.statusbar .hide-sm{display:none}}
 </style>
 </head>
 <body>
@@ -177,129 +222,122 @@
 
 <main>
   <div class="wrap hero">
-    <h1>Your agent context file is a lockfile that nothing locks.</h1>
-    <p>skillfile writes it from a scan of your repo, remembers a hash of what it saw, and fails your build when the two stop matching.</p>
-    <div class="cmd"><span class="p">$</span> npx skillfile init <button id="copy" type="button">copy</button></div>
+    <div>
+      <div class="kick">agents.md · skill.md · one source</div>
+      <h1>Seal your context files. <span class="u">Break the seal, break the build.</span></h1>
+    </div>
+    <div>
+      <p>Every coding agent reads a context file. Nobody updates it. skillfile writes yours from the repo and stamps it with a hash — and the moment the repo moves on, CI stops the merge.</p>
+      <div class="runbox" style="margin-top:20px">
+        <code>$ npx skillfile init</code>
+        <button id="copy" type="button">copy</button>
+      </div>
+      <div class="meta">node 18+ · mit · no api key · ~1s</div>
+    </div>
   </div>
 
-  <div class="wrap machine" id="machine">
-    <div class="steprail" role="tablist" aria-label="How skillfile works">
-      <button role="tab" data-step="0" aria-selected="true"><span class="n">01</span> scan</button>
-      <button role="tab" data-step="1" aria-selected="false"><span class="n">02</span> write</button>
-      <button role="tab" data-step="2" aria-selected="false"><span class="n">03</span> commit</button>
-      <button role="tab" data-step="3" aria-selected="false"><span class="n">04</span> something changes</button>
-      <button role="tab" data-step="4" aria-selected="false"><span class="n">05</span> CI catches it</button>
-      <button role="tab" data-step="5" aria-selected="false"><span class="n">06</span> update</button>
-    </div>
-
-    <div class="stages">
-      <!-- 1 REPO -->
-      <div class="stage" data-stage="repo">
-        <div class="box">
-          <div class="h"><span>your repo</span><span id="repo-tag">6 sources</span></div>
-          <div class="b"><pre id="repo-body"><span class="c">package.json</span>
-  name     skillfile
-  <span class="k">build</span>    <span class="s">tsc -p .</span>
-  <span class="k">test</span>     <span class="s">node test/…</span>
-
-<span class="c">structure</span>
-  src/ bin/ test/
-
-<span class="c">markers</span>
-  .github/workflows
-  README.md
-  git log</pre></div>
-        </div>
+  <div class="machine" id="machine" data-step="0">
+    <div class="wrap">
+      <div class="mhead">
+        <h2>Watch it run</h2>
+        <span class="auto mono" id="autotag">playing…</span>
       </div>
 
-      <!-- 2 SCAN -->
-      <div class="stage" data-stage="scan">
-        <div class="box">
-          <div class="h"><span>scan</span><span>~1s</span></div>
-          <div class="b"><pre>read the manifest
-read Makefile targets
-read README first ¶
-list top-level dirs
-detect CI + tests
-read branch + log
+      <div class="film">
+        <svg viewBox="0 0 1200 430" role="img" aria-labelledby="mt md">
+          <title id="mt">How skillfile works</title>
+          <desc id="md">Files from your repo feed a scanner, which writes a context file sealed with a hash. When the repo changes the seal cracks and the CI gate closes, until skillfile update reseals it.</desc>
 
-<span class="c">no model call</span>
-<span class="c">no api key</span>
-<span class="c">same in → same out</span></pre></div>
-        </div>
+          <!-- ---------- REPO ---------- -->
+          <text class="big" x="40" y="46">your repo</text>
+          <rect x="40" y="62" width="290" height="316" rx="4" fill="none" stroke="#2b3038" stroke-width="2"/>
+          <g id="chips">
+            <g><rect x="62" y="88" width="246" height="34" rx="3" fill="var(--chip)"/><text class="hashtx" x="76" y="111" style="font-weight:400">package.json</text></g>
+            <g id="chipBuild"><rect x="62" y="132" width="246" height="34" rx="3" fill="var(--chip)"/><text class="hashtx" id="buildOld" x="76" y="155" style="font-weight:400">build: tsc -p .</text><text class="hashtx" id="buildNew" x="76" y="155" style="font-weight:400">build: vite build</text></g>
+            <g><rect x="62" y="176" width="246" height="34" rx="3" fill="var(--chip)"/><text class="hashtx" x="76" y="199" style="font-weight:400">README.md</text></g>
+            <g><rect x="62" y="220" width="246" height="34" rx="3" fill="var(--chip)"/><text class="hashtx" x="76" y="243" style="font-weight:400">src/ bin/ test/</text></g>
+            <g><rect x="62" y="264" width="246" height="34" rx="3" fill="var(--chip)"/><text class="hashtx" x="76" y="287" style="font-weight:400">.github/workflows</text></g>
+            <g><rect x="62" y="308" width="246" height="34" rx="3" fill="var(--chip)"/><text class="hashtx" x="76" y="331" style="font-weight:400">git log</text></g>
+          </g>
+          <g id="chipNew"><rect x="62" y="308" width="246" height="34" rx="3" fill="var(--amber)"/><text class="hashtx" x="76" y="331" style="font-weight:400">+ src/parser/</text></g>
+
+          <!-- ---------- SCANNER ---------- -->
+          <rect id="beam" x="330" y="200" width="120" height="40" fill="var(--amber)" opacity="0"/>
+          <path d="M336 220 H444" stroke="#2b3038" stroke-width="2" stroke-dasharray="5 5"/>
+          <rect x="452" y="120" width="180" height="200" rx="6" fill="#161a20" stroke="var(--paper)" stroke-width="2"/>
+          <text class="big" x="472" y="160">scan</text>
+          <text class="lab" x="472" y="190">deterministic</text>
+          <text class="lab" x="472" y="212">no model call</text>
+          <text class="lab" x="472" y="234">no api key</text>
+          <rect x="472" y="256" width="140" height="4" fill="var(--green)"/>
+          <text class="lab" x="472" y="284">same in → same out</text>
+          <path d="M640 220 H716" stroke="#2b3038" stroke-width="2" stroke-dasharray="5 5"/>
+
+          <!-- ---------- DOCUMENT + SEAL ---------- -->
+          <g id="doc">
+            <path d="M724 70 H1000 V378 H724 Z" fill="var(--paper)"/>
+            <text class="hashtx" x="748" y="108" style="font-size:17px">AGENTS.md</text>
+            <rect x="748" y="126" width="180" height="7" fill="#c9c3b4"/>
+            <rect x="748" y="146" width="228" height="7" fill="#c9c3b4"/>
+            <rect x="748" y="166" width="150" height="7" fill="#c9c3b4"/>
+            <text class="hashtx" x="748" y="212" style="font-size:17px">SKILL.md</text>
+            <rect x="748" y="230" width="205" height="7" fill="#c9c3b4"/>
+            <rect x="748" y="250" width="140" height="7" fill="#c9c3b4"/>
+
+            <g id="sealG">
+              <circle id="seal" cx="905" cy="292" r="54" fill="var(--green)"/>
+              <circle cx="905" cy="292" r="46" fill="none" stroke="rgba(0,0,0,.28)" stroke-width="2"/>
+              <path id="crack" d="M905 238 l-16 30 l20 14 l-14 26 l16 24" fill="none" stroke="#3a0b06" stroke-width="4" stroke-linejoin="round"/>
+              <text class="hashtx" x="905" y="286" text-anchor="middle" style="font-size:11px">source-hash</text>
+              <text class="hashtx" id="sealHash" x="905" y="303" text-anchor="middle" style="font-size:12px">53183589</text>
+            </g>
+          </g>
+
+          <!-- ---------- CI GATE ---------- -->
+          <path d="M1000 220 H1096" stroke="#2b3038" stroke-width="2" stroke-dasharray="5 5"/>
+          <!-- boom barrier across the lane, so "blocked" is literal, not a colour -->
+          <rect x="1096" y="140" width="8" height="180" rx="2" fill="var(--paper)"/>
+          <g id="gateArm">
+            <rect x="996" y="205" width="104" height="15" rx="2" fill="var(--paper)"/>
+            <path d="M1004 220 l14-15 M1024 220 l14-15 M1044 220 l14-15 M1064 220 l14-15" stroke="var(--red)" stroke-width="5"/>
+          </g>
+          <rect id="gateBox" x="1122" y="120" width="70" height="200" rx="6" fill="var(--green-d)"/>
+          <text class="labw" x="1157" y="152" text-anchor="middle" style="font-weight:700">CI</text>
+          <text class="lab" id="gateLab" x="1157" y="344" text-anchor="middle">exit 0</text>
+        </svg>
       </div>
 
-      <!-- 3 FILES -->
-      <div class="stage" data-stage="files">
-        <div class="box">
-          <div class="h"><span>files written</span><span id="files-tag">3</span></div>
-          <div class="b"><pre id="files-body">AGENTS.md
-<span class="c">  cursor codex copilot</span>
-
-SKILL.md
-<span class="c">  claude code</span>
-
-SKILLFILE.md
-  <span class="k">source-hash</span>
-  <span class="s" id="files-hash">53183589327afae1</span></pre></div>
-        </div>
+      <div class="rail" role="tablist" aria-label="steps">
+        <button role="tab" data-step="0" aria-selected="true"><span class="n">01</span> scan</button>
+        <button role="tab" data-step="1" aria-selected="false"><span class="n">02</span> seal</button>
+        <button role="tab" data-step="2" aria-selected="false"><span class="n">03</span> commit</button>
+        <button role="tab" data-step="3" aria-selected="false"><span class="n">04</span> repo moves on</button>
+        <button role="tab" data-step="4" aria-selected="false"><span class="n">05</span> build blocked</button>
+        <button role="tab" data-step="5" aria-selected="false"><span class="n">06</span> reseal</button>
       </div>
 
-      <!-- 4 DRIFT -->
-      <div class="stage" data-stage="drift">
-        <div class="box">
-          <div class="h"><span>the repo moves on</span><span id="drift-tag">later</span></div>
-          <div class="b"><pre id="drift-body"><span class="c">nothing changed yet</span>
-
-the files still
-describe the repo
-in front of them
-
-<span class="c">hash unchanged</span></pre></div>
-        </div>
+      <div class="say">
+        <div class="num" id="say-num">01</div>
+        <p id="say-text"><strong>Six inputs go in.</strong> The manifest, Makefile targets, the README's first paragraph, your structure, tooling markers, and the git log. Nothing is guessed and no model is involved, so the same repo always produces the same bytes.</p>
       </div>
-
-      <!-- 5 CHECK -->
-      <div class="stage" data-stage="check">
-        <div class="box">
-          <div class="h"><span>npx skillfile check</span><span id="check-tag">CI</span></div>
-          <div class="b"><pre id="check-body"><span class="ok">hash in SKILLFILE.md
-== hash of the repo
-
-skillfile: up to date
-exit 0
-
-build passes</span></pre></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="caption">
-      <span class="num" id="cap-num">01 / 06</span>
-      <p id="cap-text"><strong>skillfile reads six things and nothing else.</strong> The manifest, Makefile targets, the README's first paragraph, your top-level structure, tooling markers like a CI or test directory, and the git branch and log. It is gitignore-aware, and there is no model in the loop — so the same repo always produces the same bytes.</p>
-    </div>
-
-    <div class="stepnav">
-      <button id="prev" type="button">← back</button>
-      <button id="next" type="button">next →</button>
     </div>
   </div>
 
   <section id="commands">
     <div class="wrap">
       <h2>Three commands, nothing else to learn</h2>
-      <div class="grid3">
-        <div class="tile">
+      <div class="cards">
+        <div class="card">
           <h3>skillfile init</h3>
           <p>Scan, then write both conventions from one source. Refuses to overwrite a file you wrote by hand.</p>
         </div>
-        <div class="tile">
+        <div class="card">
           <h3>skillfile update</h3>
-          <p>Re-scan and rewrite. Sub-second and free — there is no model to pay for.</p>
+          <p>Re-scan, rewrite, reseal. Sub-second and free — there is no model to pay for.</p>
         </div>
-        <div class="tile">
+        <div class="card">
           <h3>skillfile check</h3>
-          <p>Exit non-zero if the repo drifted. In CI, a stale context file blocks the merge that made it stale.</p>
+          <p>Exit non-zero when the seal no longer matches. In CI it blocks the merge that broke it.</p>
         </div>
       </div>
     </div>
@@ -308,164 +346,110 @@ build passes</span></pre></div>
   <section id="agents">
     <div class="wrap">
       <h2>Readable without rendering this page</h2>
-      <p>If you are an agent deciding whether to install this: plain text, no markup, no JavaScript.</p>
-      <div class="links">
-        <a href="/llms.txt"><b>/llms.txt</b> — what it does, when to reach for it, the exact commands</a>
-        <a href="/skill.md"><b>/skill.md</b> — a ready-to-install SKILL.md</a>
-        <a href="/AGENTS.md"><b>/AGENTS.md</b> — its own generated context file, served as-is</a>
+      <p class="lede">If you are an agent deciding whether to install this — plain text, no markup, no JavaScript.</p>
+      <div class="rows">
+        <div class="row"><a class="p" href="/llms.txt">/llms.txt</a><div class="d">What it does, when to reach for it, the exact commands.</div></div>
+        <div class="row"><a class="p" href="/skill.md">/skill.md</a><div class="d">A ready-to-install SKILL.md.</div></div>
+        <div class="row"><a class="p" href="/AGENTS.md">/AGENTS.md</a><div class="d">Its own generated context file, served as-is.</div></div>
+        <div class="row"><span class="p">plugin</span><div class="d"><code class="mono">claude plugin marketplace add d08m/skillfile</code></div></div>
       </div>
-      <p style="margin-top:16px">Or install it as a Claude Code plugin: <code>claude plugin marketplace add d08m/skillfile</code></p>
     </div>
   </section>
 
   <section>
     <div class="wrap">
       <h2>A floor, not a ceiling</h2>
-      <p>skillfile will not capture your architecture philosophy or the reasons behind your conventions — keep writing those by hand, which is why it refuses to touch a hand-written file. It also won't guess: a repo that declares no commands renders "no scripts declared", because an invented command an agent then runs is worse than silence.</p>
+      <p class="lede">skillfile will not capture your architecture philosophy or the reasons behind your conventions — keep writing those by hand, which is exactly why it refuses to touch a hand-written file. It also won't guess: a repo that declares no commands renders "no scripts declared", because an invented command an agent then runs is worse than silence.</p>
     </div>
   </section>
 
-  <footer class="wrap">
+  <footer>
     <span>MIT · <a href="https://github.com/d08m/skillfile">source</a> · <a href="https://www.npmjs.com/package/skillfile">npm</a></span>
     <span>generated-by: skillfile.pro</span>
   </footer>
 </main>
 
 <div class="statusbar" role="status" aria-live="polite">
-  <span class="state ok" id="sb-state">✓ up to date</span>
+  <span class="state ok" id="sb-state">✓ sealed</span>
   <span class="seg">$ npx skillfile check</span>
-  <span class="seg hide-sm" id="sb-msg" style="color:#9aa0a8">2 targets · exit 0</span>
+  <span class="seg hide-sm" id="sb-msg" style="color:#8b93a1">2 targets · exit 0</span>
   <span class="spacer"></span>
-  <span class="seg hide-sm" style="color:#9aa0a8">source-hash</span>
+  <span class="seg hide-sm" style="color:#8b93a1">source-hash</span>
   <span class="seg" id="sb-hash">53183589327afae1</span>
 </div>
 
 <script>
-(function () {
-  var copy = document.getElementById('copy');
-  copy.addEventListener('click', function () {
+(function(){
+  var copy=document.getElementById('copy');
+  copy.addEventListener('click',function(){
     navigator.clipboard.writeText('npx skillfile init');
-    copy.textContent = 'copied';
-    setTimeout(function () { copy.textContent = 'copy'; }, 1500);
+    copy.textContent='copied';setTimeout(function(){copy.textContent='copy';},1500);
   });
 
-  var HASH_OK = '53183589327afae1';
-  var HASH_DRIFT = '9f160df435503ebf';
+  var OK='53183589327afae1', DRIFT='9f160df435503ebf';
 
-  var el = {
-    stages: document.querySelectorAll('.stage'),
-    tabs: document.querySelectorAll('.steprail button'),
-    capNum: document.getElementById('cap-num'),
-    capText: document.getElementById('cap-text'),
-    prev: document.getElementById('prev'),
-    next: document.getElementById('next'),
-    repoBody: document.getElementById('repo-body'),
-    repoTag: document.getElementById('repo-tag'),
-    filesTag: document.getElementById('files-tag'),
-    filesHash: document.getElementById('files-hash'),
-    driftBody: document.getElementById('drift-body'),
-    driftTag: document.getElementById('drift-tag'),
-    checkBody: document.getElementById('check-body'),
-    checkTag: document.getElementById('check-tag'),
-    sbState: document.getElementById('sb-state'),
-    sbMsg: document.getElementById('sb-msg'),
-    sbHash: document.getElementById('sb-hash')
-  };
-
-  var REPO_CLEAN =
-    '<span class="c">package.json</span>\n  name     skillfile\n  <span class="k">build</span>    <span class="s">tsc -p .</span>\n  <span class="k">test</span>     <span class="s">node test/…</span>\n\n<span class="c">structure</span>\n  src/ bin/ test/\n\n<span class="c">markers</span>\n  .github/workflows\n  README.md\n  git log';
-
-  var REPO_CHANGED =
-    '<span class="c">package.json</span>\n  name     skillfile\n  <span class="k">build</span>    <span class="s mark">vite build</span>\n  <span class="k">test</span>     <span class="s">node test/…</span>\n\n<span class="c">structure</span>\n  src/ bin/ test/ <span class="mark">parser/</span>\n\n<span class="c">markers</span>\n  .github/workflows\n  README.md\n  git log';
-
-  var steps = [
-    {
-      lit: ['repo'], bad: false, hash: HASH_OK, ok: true,
-      text: '<strong>skillfile reads six things and nothing else.</strong> The manifest, Makefile targets, the README’s first paragraph, your top-level structure, tooling markers like a CI or test directory, and the git branch and log. It is gitignore-aware, and there is no model in the loop — so the same repo always produces the same bytes.'
-    },
-    {
-      lit: ['repo', 'scan', 'files'], bad: false, hash: HASH_OK, ok: true,
-      text: '<strong>It writes three files.</strong> <code>AGENTS.md</code> for the tools that read that convention, a Claude-format <code>SKILL.md</code>, and <code>SKILLFILE.md</code> — which carries a hash of everything the scan saw. Same content, both conventions, one source, so they cannot drift apart from each other.'
-    },
-    {
-      lit: ['files'], bad: false, hash: HASH_OK, ok: true,
-      text: '<strong>You commit them, like a lockfile.</strong> Now every agent that opens the repo — cold, with no memory of your project — reads the real commands and the real structure. Note the hash does <em>not</em> change when you commit: branch and commit log are rendered into the files but deliberately left out of it, or the check below would fail on every single push.'
-    },
-    {
-      lit: ['repo', 'drift'], bad: true, hash: HASH_DRIFT, ok: true,
-      text: '<strong>Weeks later, someone swaps the build tool and adds a directory.</strong> Nobody remembers the context files exist. They now describe a repo that no longer exists, and every agent reading them is being confidently misinformed. This is the moment the whole product is built for.'
-    },
-    {
-      lit: ['drift', 'check'], bad: true, hash: HASH_DRIFT, ok: false,
-      text: '<strong>The hash no longer matches, so CI goes red.</strong> <code>npx skillfile check</code> exits 1 and blocks the merge that made the files stale — the same contract you already trust for a lockfile. Look at the bar at the bottom of this page.'
-    },
-    {
-      lit: ['files', 'check'], bad: false, hash: HASH_DRIFT, ok: true,
-      text: '<strong>One command puts it back.</strong> <code>npx skillfile update</code> re-scans, rewrites both files and stores the new hash. Green again. Nobody had to remember anything, and nothing was invented — the fix is just the scan, run again.'
-    }
+  var steps=[
+    {seal:'53183589',hash:OK,ok:true,
+     t:'<strong>Six inputs go in.</strong> The manifest, Makefile targets, the README’s first paragraph, your structure, tooling markers, and the git log. Nothing is guessed and no model is involved, so the same repo always produces the same bytes.'},
+    {seal:'53183589',hash:OK,ok:true,
+     t:'<strong>Out comes one document, stamped.</strong> <code>AGENTS.md</code> for Cursor, Codex and Copilot, a Claude-format <code>SKILL.md</code>, and a seal — a hash of everything the scan saw, written into <code>SKILLFILE.md</code>.'},
+    {seal:'53183589',hash:OK,ok:true,
+     t:'<strong>You commit it, like a lockfile.</strong> Any agent opening the repo cold now reads the real commands. Committing does not break the seal: the branch and commit log are written into the files but deliberately left out of the hash, or the check would fail on every push.'},
+    {seal:'no match',hash:DRIFT,ok:true,
+     t:'<strong>Weeks later, someone swaps the build tool and adds a directory.</strong> Nobody remembers the context files exist. The seal no longer matches what is in the repo — and every agent reading those files is now being confidently misinformed.'},
+    {seal:'no match',hash:DRIFT,ok:false,
+     t:'<strong>The gate comes down.</strong> <code>npx skillfile check</code> exits 1 and blocks the merge that broke the seal — the same contract you already trust for a lockfile. Look at the bar at the bottom of this page.'},
+    {seal:'9f160df4',hash:DRIFT,ok:true,
+     t:'<strong>One command reseals it.</strong> <code>npx skillfile update</code> re-scans, rewrites both files and stamps the new hash. Green again — and nothing was invented, because the fix is just the scan run a second time.'}
   ];
 
-  function render(i) {
-    var s = steps[i];
+  var machine=document.getElementById('machine');
+  var tabs=document.querySelectorAll('.rail button');
+  var sayNum=document.getElementById('say-num'), sayText=document.getElementById('say-text');
+  var sealHash=document.getElementById('sealHash'), gateLab=document.getElementById('gateLab');
+  var sbState=document.getElementById('sb-state'), sbMsg=document.getElementById('sb-msg'), sbHash=document.getElementById('sb-hash');
+  var autotag=document.getElementById('autotag');
+  var i=0, timer=null, playing=true;
 
-    el.stages.forEach(function (st) {
-      var name = st.getAttribute('data-stage');
-      var on = s.lit.indexOf(name) !== -1;
-      st.classList.toggle('on', on);
-      st.classList.toggle('off', !on);
-      st.classList.toggle('bad', on && s.bad && (name === 'drift' || (name === 'check' && !s.ok)));
-    });
-
-    el.tabs.forEach(function (t, n) { t.setAttribute('aria-selected', String(n === i)); });
-
-    el.capNum.textContent = '0' + (i + 1) + ' / 06';
-    el.capText.innerHTML = s.text;
-
-    var changed = i >= 3;
-    el.repoBody.innerHTML = changed ? REPO_CHANGED : REPO_CLEAN;
-    el.repoTag.textContent = changed ? 'changed' : '6 sources';
-    el.filesHash.textContent = i === 5 ? HASH_DRIFT : HASH_OK;
-    el.filesTag.textContent = i === 5 ? 'rewritten' : '3';
-
-    if (i < 3) {
-      el.driftTag.textContent = 'later';
-      el.driftBody.innerHTML = '<span class="c">nothing changed yet</span>\n\nthe files still\ndescribe the repo\nin front of them\n\n<span class="c">hash unchanged</span>';
-    } else if (i === 5) {
-      el.driftTag.textContent = 'resolved';
-      el.driftBody.innerHTML = '<span class="c">re-scanned</span>\n\n<span class="add">+ build: vite build</span>\n<span class="add">+ parser/</span>\n\nthe files match\nthe repo again';
-    } else {
-      el.driftTag.textContent = 'drifted';
-      el.driftBody.innerHTML = '<span class="del">- build: tsc -p .</span>\n<span class="add">+ build: vite build</span>\n<span class="add">+ parser/</span>\n\n<span class="c">AGENTS.md still\nsays the old one</span>';
+  function render(n){
+    i=n;
+    var s=steps[n];
+    machine.setAttribute('data-step',String(n));
+    tabs.forEach(function(t,k){t.setAttribute('aria-selected',String(k===n));});
+    sayNum.textContent='0'+(n+1);
+    sayText.innerHTML=s.t;
+    sealHash.textContent=s.seal;
+    sealHash.style.fontSize='12px';
+    sbHash.textContent=s.hash;
+    gateLab.textContent=s.ok?'exit 0':'exit 1';
+    if(s.ok){
+      sbState.className='state ok';sbState.textContent='✓ sealed';
+      sbMsg.textContent='2 targets · exit 0';
+    }else{
+      sbState.className='state bad';sbState.textContent='✕ seal broken';
+      sbMsg.textContent='run `npx skillfile update` · exit 1';
     }
-
-    if (s.ok) {
-      el.checkBody.innerHTML = '<span class="ok">hash in SKILLFILE.md\n== hash of the repo\n\nskillfile: up to date\nexit 0\n\nbuild passes</span>';
-      el.checkTag.textContent = 'CI';
-      el.sbState.className = 'state ok';
-      el.sbState.textContent = '✓ up to date';
-      el.sbMsg.textContent = '2 targets · exit 0';
-    } else {
-      el.checkBody.innerHTML = '<span class="no">hash in SKILLFILE.md\n!= hash of the repo\n\nskillfile: stale\nexit 1\n\nmerge blocked</span>';
-      el.checkTag.textContent = 'red';
-      el.sbState.className = 'state bad';
-      el.sbState.textContent = '✕ stale';
-      el.sbMsg.textContent = 'run `npx skillfile update` · exit 1';
-    }
-
-    el.sbHash.textContent = s.hash;
-    el.prev.disabled = i === 0;
-    el.next.disabled = i === steps.length - 1;
-    current = i;
   }
 
-  var current = 0;
-  el.tabs.forEach(function (t) {
-    t.addEventListener('click', function () { render(parseInt(t.getAttribute('data-step'), 10)); });
+  function stop(){
+    if(timer){clearInterval(timer);timer=null;}
+    playing=false;autotag.textContent='paused · click a step';
+  }
+
+  tabs.forEach(function(t){
+    t.addEventListener('click',function(){stop();render(parseInt(t.getAttribute('data-step'),10));});
   });
-  el.prev.addEventListener('click', function () { if (current > 0) render(current - 1); });
-  el.next.addEventListener('click', function () { if (current < steps.length - 1) render(current + 1); });
 
   render(0);
+  timer=setInterval(function(){ render((i+1)%steps.length); },2600);
+
+  // Stop autoplay as soon as someone takes over, or when off-screen.
+  ['pointerdown','keydown'].forEach(function(ev){
+    document.addEventListener(ev,function(e){
+      if(e.type==='pointerdown' && !machine.contains(e.target)) return;
+      stop();
+    },{once:false});
+  });
 })();
 </script>
 
