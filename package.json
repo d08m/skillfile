@@ -35,7 +35,8 @@
   "scripts": {
     "test": "node test/smoke.js",
     "check-tools": "node scripts/check-tools.js",
-    "sync-site": "node scripts/sync-site.js"
+    "sync-site": "node scripts/sync-site.js",
+    "k": "node scripts/k-metric.js --append"
   },
   "dependencies": {
     "commander": "^12.1.0",
